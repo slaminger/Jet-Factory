@@ -18,8 +18,7 @@ type (
 
 var (
 	// dir = ${distributionName}-${version}-aarch64-${date}
-	dir string
-	url string
+	dir, url string
 
 	avalaibleDistributions = map[string]map[string][]string{
 		"arch": {
@@ -29,13 +28,13 @@ var (
 			"configs": {},
 		},
 		"fedora": {
-			"urls":    {"http://mirrors.ircam.fr/pub/fedora/linux/version-releases/${version-number}/Server/aarch64/images/Fedora-${version}.raw.xz"},
+			"urls":    {"http://mirrors.ircam.fr/pub/fedora/linux/version-releases/${version}/Server/aarch64/images/Fedora-${version-release}.raw.xz"},
 			"de":      {"XFCE Desktop", "LXDE Desktop"},
 			"pkgs":    {},
 			"configs": {},
 		},
 		"opensuse": {
-			"url":     {"http://download.opensuse.org/ports/aarch64/distribution/${version-number}/appliances/openSUSE-${version}-ARM-${desktop}.aarch64-rootfs.aarch64.tar.xz"},
+			"url":     {"http://download.opensuse.org/ports/aarch64/distribution/${version}/appliances/openSUSE-${version-release}-ARM-${desktop}.aarch64-rootfs.aarch64.tar.xz"},
 			"de":      {"LXDE", "KDE", "XFCE"},
 			"pkgs":    {},
 			"configs": {},
@@ -64,6 +63,7 @@ func SpawnProcess(cmd string, args ...string) (p *os.Process, err error) {
 	return nil, err
 }
 
+// MatchDe :
 func MatchDe(name, desktop string) string {
 	desktops := avalaibleDistributions[name]["de"]
 	for i := 0; i < len(desktops); i++ {
@@ -80,7 +80,7 @@ func MatchDe(name, desktop string) string {
 	return desktop
 }
 
-// Prepare :
+// BaseSetup :
 func BaseSetup(name, version, desktop string) (r *Base, err error) {
 	// Check if name match a known distribution
 	for avalaible := range avalaibleDistributions {
@@ -89,15 +89,14 @@ func BaseSetup(name, version, desktop string) (r *Base, err error) {
 			return nil, err
 		}
 		MatchDe(name, desktop)
-		if !(version == "latest" || version == "") {
-			if version != "latest" {
-				func() {
-					// HTTP Query find url match
-				}()
-			}
-			log.Println("Using latest version number: ")
-			BaseSetup(name, "", desktop)
+		if !(version == "latest" || version == "" || name == "arch") {
+			func() {
+				// HTTP Query version find and match url
+			}()
 		}
+
+		log.Println("Using latest version number: ")
+		BaseSetup(name, "", desktop)
 		r = &Base{name, version, desktop, nil, nil}
 	}
 	return r, nil
@@ -105,18 +104,8 @@ func BaseSetup(name, version, desktop string) (r *Base, err error) {
 
 // BaseBuild :
 func BaseBuild(name, version, desktop string) (p *os.Process, err error) {
-	if root, err := BaseSetup(name, version, desktop); err == nil {
-		for name := range avalaibleDistributions {
-			switch name {
-			case "arch":
-
-			case "fedora":
-
-			case "opensuse":
-
-			case "ubuntu":
-			}
-		}
+	if root, err := BaseSetup(name, version, desktop); err != nil {
+		return nil, err
 	}
 	// TODO :
 	// Create empty build with ${distributionName}-${version}-aarch64-${date} format directory as docker volume attached to /root/l4t/
@@ -140,6 +129,7 @@ func BaseBuild(name, version, desktop string) (p *os.Process, err error) {
 	}
 }
 
+// JetFactory :
 func JetFactory() {
 	// BaseBuild()
 }
