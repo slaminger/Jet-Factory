@@ -1,3 +1,5 @@
+// TODO : Make a single function that handles parsing and replacing urls
+// TODO 2 : Make function to check url avalaibility
 package JetFactory
 
 import (
@@ -34,16 +36,22 @@ var (
 			"configs": {},
 		},
 		"opensuse": {
-			"url":     {"http://download.opensuse.org/ports/aarch64/distribution/${version}/appliances/openSUSE-${version-release}-ARM-${desktop}.aarch64-rootfs.aarch64.tar.xz"},
+			"urls":    {"http://download.opensuse.org/ports/aarch64/distribution/${version}/appliances/openSUSE-${version-release}-ARM-${desktop}.aarch64-rootfs.aarch64.tar.xz"},
 			"de":      {"LXDE", "KDE", "XFCE"},
 			"pkgs":    {},
 			"configs": {},
 		},
 		"ubuntu": {
-			"url":     {""},
+			"urls":    {""},
 			"de":      {"LXDE", "KDE", "XFCE"},
 			"pkgs":    {},
 			"configs": {},
+		},
+	}
+	variants = map[string][]string{
+		"arch": {
+			"blackarch",
+			"arch-bang",
 		},
 	}
 )
@@ -71,7 +79,7 @@ func MatchDe(name, desktop string) string {
 			if !strings.Contains(desktops[i], desktop) {
 				desktop = MatchDe(name, "XFCE")
 				log.Println("Unknown DE: %s, avalaible DE : %s", desktop, desktops)
-				log.Println("Using default : XFCE")
+				log.Println("Using XFCE default")
 			}
 			desktop = desktops[i]
 			log.Println("Found Desktop environment: %s", desktop)
@@ -81,7 +89,7 @@ func MatchDe(name, desktop string) string {
 }
 
 // BaseSetup :
-func BaseSetup(name, version, desktop string) (r *Base, err error) {
+func Setup(name, version, desktop string) (r *Base, err error) {
 	// Check if name match a known distribution
 	for avalaible := range avalaibleDistributions {
 		if !(name == avalaible) {
@@ -91,40 +99,50 @@ func BaseSetup(name, version, desktop string) (r *Base, err error) {
 		MatchDe(name, desktop)
 		if !(version == "latest" || version == "" || name == "arch") {
 			func() {
-				// HTTP Query version find and match url
+				// HTTP Query version find, match and construct url
+			}()
+		}
+		if version == "" {
+			if name == "arch" {
+				log.Println("Using latest for arch anyway !")
+				url = avalaibleDistributions[name]["url"][0]
+			}
+			func() {
+				// HTTP Query latest find, match and construct url
 			}()
 		}
 
 		log.Println("Using latest version number: ")
-		BaseSetup(name, "", desktop)
+		Setup(name, "", desktop)
 		r = &Base{name, version, desktop, nil, nil}
 	}
 	return r, nil
 }
 
 // BaseBuild :
-func BaseBuild(name, version, desktop string) (p *os.Process, err error) {
-	if root, err := BaseSetup(name, version, desktop); err != nil {
+func Build(name, version, desktop string) (p *os.Process, err error) {
+	if root, err := Setup(name, version, desktop); err != nil {
 		return nil, err
 	}
 	// TODO :
-	// Create empty build with ${distributionName}-${version}-aarch64-${date} format directory as docker volume attached to /root/l4t/
+	// Create and got to dir
+	// dir format - ${distributionName}-${version}-aarch64-${date}
 	_, mkdir := SpawnProcess("mkdir", "-p", dir)
-	// Wget Dockerfile from github to volume
+	// Wget Dockerfile from github to volume dir
 	_, get := SpawnProcess("wget", "https://raw.githubusercontent.com/Azkali/Jet-Factory/master/Dockerfile", "-P", dir)
-	// Wget Dockerfile from github to volume
-	_, getBase := SpawnProcess("wget", url, "-P", dir)
+	// Replace URL variable in Dockerfile
+	_, sed := SpawnProcess("sed", "-i \"s/${URL}\"/"+url+"/g Dockerfile")
 	// Start docker
 	_, start := SpawnProcess("systemctl", "start", "docker.service", "docker.socket")
 	// Create image
 	_, img := SpawnProcess("docker", "image build -t", "opensusel4tbuild:1.0", dir)
-	// Run container build process
+	// Run container build process attach buildir as volume to container
 	_, run := SpawnProcess("docker", "run --privileged --cap-add=SYS_ADMIN --rm -it", "-v "+dir+":/root/l4t/ l4tbuild:1.0", "/root/l4t/create-rootfs.sh")
-	if !(mkdir == nil || get == nil || getBase == nil || start == nil || img == nil || run == nil) {
+	if !(mkdir == nil || get == nil || start == nil || img == nil || run == nil || sed == nil) {
 		return nil, err
 	} else {
 		// 7z directory with L4S-${distributionName}-${version}-aarch64-${date}.7z format
-		proc, err := SpawnProcess("7z", "a", "L4S"+dir+".7z")
+		proc, err := SpawnProcess("7z", "a", "L4S"+dir+".7z", dir+"/*")
 		return proc, err
 	}
 }
