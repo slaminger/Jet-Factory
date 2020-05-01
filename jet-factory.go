@@ -81,29 +81,31 @@ func MatchDe(name, desktop string) string {
 }
 
 // Prepare :
-func PrepareBase(name, version, desktop string) (r *Base, err error) {
+func BaseSetup(name, version, desktop string) (r *Base, err error) {
 	// Check if name match a known distribution
 	for avalaible := range avalaibleDistributions {
-		if name == avalaible {
-			MatchDe(name, desktop)
-			if !(version == "latest" || version == "") {
-				if version != "latest" {
-					func() { // HTTP Query find url match
-					}()
-				}
-				log.Println("Using latest version number: ")
-				PrepareBase(name, "", desktop)
+		if !(name == avalaible) {
+			log.Printf("Unknown distribution: %s", name)
+			return nil, err
+		}
+		MatchDe(name, desktop)
+		if !(version == "latest" || version == "") {
+			if version != "latest" {
+				func() {
+					// HTTP Query find url match
+				}()
+			}
+			log.Println("Using latest version number: ")
+			BaseSetup(name, "", desktop)
 		}
 		r = &Base{name, version, desktop, nil, nil}
-		return r, nil
 	}
-	log.Printf("Unknown distribution: %s", name)
-	return nil, err
+	return r, nil
 }
 
-// Build :
-func BuildBase(name, version, desktop string) (p *os.Process, err error) {
-	if root, err := PrepareBase(name, version, desktop); err == nil {
+// BaseBuild :
+func BaseBuild(name, version, desktop string) (p *os.Process, err error) {
+	if root, err := BaseSetup(name, version, desktop); err == nil {
 		for name := range avalaibleDistributions {
 			switch name {
 			case "arch":
@@ -139,5 +141,5 @@ func BuildBase(name, version, desktop string) (p *os.Process, err error) {
 }
 
 func JetFactory() {
-	// BuildBase()
+	// BaseBuild()
 }
