@@ -1,3 +1,3 @@
 # Jet Factory
 
-L4T distribution creation helper.
+AIO universal L4T distribution builder
