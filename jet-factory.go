@@ -12,37 +12,39 @@ type (
 	// Base : Represent a distribution conatining a name, version, desktop environment and an optional list packages
 	Base struct {
 		name, version, desktop string
-		pkgs, configs          interface{}
+		pkgs, configs          []string
 	}
 )
 
 var (
-	latest string
+	// dir = ${distributionName}-${version}-aarch64-${date}
+	dir string
+	url string
 
 	avalaibleDistributions = map[string]map[string][]string{
-		"arch": map[string][]string{
-			"urls":    []string{"http://os.archlinuxarm.org/os/ArchLinuxARM-aarch64-latest.tar.gz"},
-			"de":      []string{"xfce4", "lxde", "plasma"},
-			"extras":  []string{},
-			"configs": []string{},
+		"arch": {
+			"urls":    {"http://os.archlinuxarm.org/os/ArchLinuxARM-aarch64-latest.tar.gz"},
+			"de":      {"xfce4", "lxde", "plasma"},
+			"pkgs":    {},
+			"configs": {},
 		},
-		"fedora": map[string][]string{
-			"urls":    []string{"http://mirrors.ircam.fr/pub/fedora/linux/version-releases/${version-number}/Server/aarch64/images/Fedora-${version}.raw.xz"},
-			"de":      []string{"XFCE Desktop", "LXDE Desktop"},
-			"extras":  []string{},
-			"configs": []string{},
+		"fedora": {
+			"urls":    {"http://mirrors.ircam.fr/pub/fedora/linux/version-releases/${version-number}/Server/aarch64/images/Fedora-${version}.raw.xz"},
+			"de":      {"XFCE Desktop", "LXDE Desktop"},
+			"pkgs":    {},
+			"configs": {},
 		},
-		"opensuse": map[string][]string{
-			"url":     []string{"http://download.opensuse.org/ports/aarch64/distribution/${version-number}/appliances/openSUSE-${version}-ARM-${desktop}.aarch64-rootfs.aarch64.tar.xz"},
-			"de":      []string{"LXDE", "KDE", "XFCE"},
-			"extras":  []string{},
-			"configs": []string{},
+		"opensuse": {
+			"url":     {"http://download.opensuse.org/ports/aarch64/distribution/${version-number}/appliances/openSUSE-${version}-ARM-${desktop}.aarch64-rootfs.aarch64.tar.xz"},
+			"de":      {"LXDE", "KDE", "XFCE"},
+			"pkgs":    {},
+			"configs": {},
 		},
 		"ubuntu": {
-			"url":     []string{""},
-			"de":      []string{"LXDE", "KDE", "XFCE"},
-			"extras":  []string{},
-			"configs": []string{},
+			"url":     {""},
+			"de":      {"LXDE", "KDE", "XFCE"},
+			"pkgs":    {},
+			"configs": {},
 		},
 	}
 )
@@ -84,16 +86,16 @@ func PrepareBase(name, version, desktop string) (r *Base, err error) {
 	for avalaible := range avalaibleDistributions {
 		if name == avalaible {
 			MatchDe(name, desktop)
-			switch version {
-			case "latest":
-				version = latest
-			default:
-				log.Println("Using latest version number %s", latest)
-				version = latest
-			}
-			r = &Base{name, version, desktop, nil, nil}
-			return r, nil
+			if !(version == "latest" || version == "") {
+				if version != "latest" {
+					func() { // HTTP Query find url match
+					}()
+				}
+				log.Println("Using latest version number: ")
+				PrepareBase(name, "", desktop)
 		}
+		r = &Base{name, version, desktop, nil, nil}
+		return r, nil
 	}
 	log.Printf("Unknown distribution: %s", name)
 	return nil, err
@@ -101,13 +103,18 @@ func PrepareBase(name, version, desktop string) (r *Base, err error) {
 
 // Build :
 func BuildBase(name, version, desktop string) (p *os.Process, err error) {
-	// dir = ${distributionName}-${version}-aarch64-${date}
-	var dir string
-	var url string
-
 	if root, err := PrepareBase(name, version, desktop); err == nil {
-		dir = ""
-		url = ""
+		for name := range avalaibleDistributions {
+			switch name {
+			case "arch":
+
+			case "fedora":
+
+			case "opensuse":
+
+			case "ubuntu":
+			}
+		}
 	}
 	// TODO :
 	// Create empty build with ${distributionName}-${version}-aarch64-${date} format directory as docker volume attached to /root/l4t/
@@ -125,7 +132,7 @@ func BuildBase(name, version, desktop string) (p *os.Process, err error) {
 	if !(mkdir == nil || get == nil || getBase == nil || start == nil || img == nil || run == nil) {
 		return nil, err
 	} else {
-		// 7z direcotry with L4S-${distributionName}-${version}-aarch64-${date}.7z format
+		// 7z directory with L4S-${distributionName}-${version}-aarch64-${date}.7z format
 		proc, err := SpawnProcess("7z", "a", "L4S"+dir+".7z")
 		return proc, err
 	}

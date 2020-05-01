@@ -14,4 +14,5 @@ RUN pacman -U /yay/*.pkg.tar.xz --noconfirm
 USER build
 RUN yay -S qemu-user-static-bin --noconfirm
 USER root
-RUN mkdir -p /root/l4t-linux/
+RUN mkdir -p /root/l4t/
+RUN wget https://raw.githubusercontent.com/Azkali/Jet-Factory/master/create-rootfs.sh -P /root/l4t/
