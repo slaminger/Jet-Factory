@@ -1,6 +1,6 @@
 #!/usr/bin/bash
 
-build_dir=/root/l4t/
+build_dir=/${HOME}/l4t/
 url=ROOTFS_URL
 archive="$(cut -d \"/\" -f1 ${url})"
 hekate_version=5.2.0
@@ -77,7 +77,7 @@ buildimg() {
 	losetup -d ${loop}
 
 	cd ${build_dir}/switchroot/install/
-	split -b4290772992 --numeric-suffixes=0 l4t-fedora.img l4t.
+	split -b4290772992 --numeric-suffixes=0 l4t.img l4t.
 
 	rm -rf ${build_dir}/{{b,r}ootfs/,tmp/,switchroot/install/l4t.img}
 }
