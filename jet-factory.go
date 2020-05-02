@@ -5,29 +5,31 @@ package JetFactory
 import (
 	"fmt"
 	"log"
+	"net/url"
 	"os"
 	"os/exec"
 	"strings"
+	"time"
 )
 
 type (
 	// Base : Represent a distribution conatining a name, version, desktop environment and an optional list of packages
 	Base struct {
-		basename, version, desktop string
-		pkgs, configs              []string
+		name, version, desktop string
+		pkgs, configs          []string
 	}
 	// Variant : Represent a distribution variant
 	Variant struct {
 		Base
-		variantname string
+		variantName string
 	}
 )
 
 var (
-	// dir : ${distributionName}-${version}-aarch64-${date}
-	basename, dir, url, variantname string
-	isVariant                       = true
-	root                            interface{}
+	// outputDir : ${distributionName}-${version}-aarch64-${date}
+	baseName, variantName, outputDir, selectedMirror string
+	isVariant                                        = true
+	root                                             interface{}
 
 	distributionsMap = map[string]map[string][]string{
 		"arch": {
@@ -78,33 +80,30 @@ func SpawnProcess(cmd string, args ...string) (p *os.Process, err error) {
 	return nil, err
 }
 
-func IsDistro(name string) {
+func IsDistro(name string) (find string, ok bool) {
 	// Check if name match a known distribution
-	for avalaible := range distributionsMap {
-		for _, variant := range variantsMap[avalaible] {
-			if !(name == variant) {
+	for base := range distributionsMap {
+		for _, variant := range variantsMap[base] {
+			if isVariant != (name == variant) {
 				isVariant = false
-				if !(name == avalaible) {
-					log.Printf("Unknown distribution: %s", name)
-					// Exit script
+				if !(name == base) {
+					return "", false
 				}
+				name = base
 			}
-			variantname = variant
-			// Assign to key corresponding to variant value
-			// basename =
+			name, baseName = variant, base
 		}
-		basename = name
 	}
+	return name, true
 }
 
 // GenDesktopEntry :
-func GenDesktopEntry(name, desktop string) string {
-	desktops := distributionsMap[name]["de"]
+func GenDesktopEntry(desktop string) string {
+	desktops := distributionsMap[baseName]["de"]
 	for i := 0; i < len(desktops); i++ {
 		if desktop != "" && !strings.Contains(desktops[i], desktop) {
-			log.Println("Unknown DE: %s, avalaible DE : %s", desktop, desktops)
-			log.Println("Using XFCE default")
-			desktop = GenDesktopEntry(name, "XFCE")
+			log.Println("Unknown DE: %s, avalaible DE : %s\nUsing XFCE default", desktop, desktops)
+			desktop = GenDesktopEntry("XFCE")
 		}
 		log.Println("Found Desktop environment: %s", desktop)
 		desktop = desktops[i]
@@ -112,72 +111,87 @@ func GenDesktopEntry(name, desktop string) string {
 	return desktop
 }
 
-// GenVersionTag :
-func GenVersionTag(name, version, desktop string) string {
-	if !(version == "latest" || version == "" || name == "arch") {
-		func() {
-			// HTTP Query version find until match and construct url
-			// If no match is found then use latest
-			GenVersionTag(name, "", desktop)
-		}()
-	}
-
-	if version == "" {
-		if name == "arch" {
-			log.Println("Using latest for arch anyway !")
-			url = distributionsMap[name]["url"][0]
+func GenUrl(version string) {
+	// HTTP Query version find until match and construct url
+	for i := 0; i < len(distributionsMap[baseName]["urls"]); i++ {
+		for _, avalaibleMirror := range distributionsMap[baseName]["urls"] {
+			// Replace name and version in url for avalaibleMirror
+			u, err := url.ParseRequestURI(avalaibleMirror)
+			if err != nil {
+				log.Println("Mirror URL : %s not available... Skipping to the next one", avalaibleMirror)
+			}
+			log.Println("Mirror URL: %s", avalaibleMirror)
+			selectedMirror = u.String()
 		}
-		func() {
-			// HTTP Query latest and construct url
-		}()
-		log.Println("Using latest version number :")
 	}
+	log.Panicln("Couldn't found any valid urls... Exiting")
+}
+
+// GenVersionTag :
+func GenVersionTag(version, desktop string) string {
+	if version == "" || baseName == "arch" {
+		GenVersionTag("latest", desktop)
+	} else if version == "latest" {
+		log.Println("Using latest version avalaible !")
+		GenVersionTag(version, desktop)
+	} else {
+		// Try to query version number
+		// if !(version) {
+		// If fails default to latest
+		// }
+	}
+	GenUrl(version)
 	return version
 }
 
+// TODO
 // GenConfigs :
 func GenConfigs(configs []string) []string {
 	return configs
 }
 
+// TODO
 // GenPackagesList :
 func GenPackagesList(pkgs []string) []string {
 	return pkgs
 }
 
-// Build :
-func Build(name, version, desktop string, configs, pkgs []string) (p *os.Process, err error) {
-	IsDistro(name)
-	desktop = GenDesktopEntry(name, desktop)
-	version = GenVersionTag(name, version, desktop)
-	root = &Base{name, version, desktop, GenConfigs(configs), GenPackagesList(pkgs)}
-	if isVariant {
-		root = &Variant{Base{name, version, desktop, GenConfigs(configs), GenPackagesList(pkgs)}, variantname}
-	}
-	// TODO :
-	// Create dir - dir format : ${distributionName}-${version}-aarch64-${date}
-	_, mkdir := SpawnProcess("mkdir", "-p", dir)
-	// Wget Dockerfile from github to volume dir
-	_, get := SpawnProcess("wget", "https://raw.githubusercontent.com/Azkali/Jet-Factory/master/Dockerfile", "-P", dir)
-	// Replace variables in Dockerfile
-	_, sed := SpawnProcess("sed", "-i \"s/${URL}\"/"+url+"/g", dir+"Dockerfile")
-	// Start docker
-	_, start := SpawnProcess("systemctl", "start", "docker.service", "docker.socket")
-	// Create image
-	_, img := SpawnProcess("docker", "image build -t", "opensusel4tbuild:1.0", dir)
-	// Run container build process attach buildir as volume to container
-	_, run := SpawnProcess("docker", "run --privileged --cap-add=SYS_ADMIN --rm -it", "-v", dir+":/root/l4t/", "l4tbuild:1.0", "/root/l4t/create-rootfs.sh")
+// JetFactory :
+func JetFactory(name, version, desktop string, configs, pkgs []string) (p *os.Process, err error) {
+	var dirName string
 
-	if !(mkdir == nil || get == nil || start == nil || img == nil || run == nil || sed == nil) {
-		return nil, err
+	if dirName, ok := IsDistro(name); !ok {
+		log.Panicln("No distribution found for : %s", dirName)
+	}
+
+	desktop = GenDesktopEntry(desktop)
+	version = GenVersionTag(version, desktop)
+	configs = GenConfigs(configs)
+	pkgs = GenPackagesList(pkgs)
+
+	outputDir = dirName + "-" + "-" + version + "-" + "aarch64" + "-" + time.Now().String()
+
+	root = &Base{baseName, version, desktop, configs, pkgs}
+
+	if isVariant {
+		dirName = variantName
+		root = &Variant{Base{baseName, version, desktop, configs, pkgs}, variantName}
+	}
+	// Create dir - dir format : ${distributionName}-${version}-aarch64-${date} && // Wget Dockerfile from github to volume dir && // Replace variables in Dockerfile
+	_, mkdir := SpawnProcess("mkdir", "-p", outputDir)
+	_, get := SpawnProcess("wget", "https://raw.githubusercontent.com/Azkali/Jet-Factory/master/Dockerfile", "-P", outputDir)
+	_, sed := SpawnProcess("sed", "-i", "\"s/URL\"/"+selectedMirror+"/g;", "\"s/NAME\"/"+name+"/g;", outputDir+"Dockerfile")
+
+	// Start docker && // Create image && // Run container build process attach buildir as volume to container
+	_, start := SpawnProcess("systemctl", "start", "docker.service", "docker.socket")
+	_, img := SpawnProcess("docker", "image build -t", "l4tbuild:1.0", outputDir)
+	_, run := SpawnProcess("docker", "run --privileged --cap-add=SYS_ADMIN --rm -it", "-v", outputDir+":/root/builder/", "l4tbuild:1.0", "/root/builder/create-rootfs.sh")
+
+	if !(mkdir == nil && get == nil && start == nil && img == nil && run == nil && sed == nil) {
+		panic(err)
 	} else {
 		// 7z directory with L4S-${distributionName}-${version}-aarch64-${date}.7z format
-		proc, err := SpawnProcess("7z", "a", "L4S"+dir+".7z", dir+"/*")
+		proc, err := SpawnProcess("dd", "of="+"./L4S"+outputDir+".img", "if="+outputDir+"/*", "bs=4M")
 		return proc, err
 	}
-}
-
-// JetFactory :
-func JetFactory() {
-	// Build()
 }

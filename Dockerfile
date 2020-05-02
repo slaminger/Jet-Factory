@@ -14,5 +14,6 @@ RUN pacman -U /yay/*.pkg.tar.xz --noconfirm
 USER build
 RUN yay -S qemu-user-static-bin --noconfirm
 USER root
-RUN wget https://raw.githubusercontent.com/Azkali/Jet-Factory/master/create-rootfs.sh -P /root/l4t/
-RUN sed -i 's/ROOTFS_URL/${URL}/g' /root/l4t/create-rootfs.sh
+RUN wget https://raw.githubusercontent.com/Azkali/Jet-Factory/master/create-rootfs.sh -P /root/builder/
+RUN sed -i 's/ROOTFS_URL/URL/g' /root/l4t/create-rootfs.sh
+RUN sed -i 's/unset/unset NAME/g' /root/l4t/create-rootfs.sh
