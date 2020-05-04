@@ -13,3 +13,14 @@
 
 # Dependency directories (remove the comment below to include it)
 # vendor/
+
+# image files
+*.img
+*.fat32
+*.ext4
+*.ext3
+*.ext2
+
+# Build dirs
+dl/
+builder/

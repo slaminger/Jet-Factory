@@ -12,7 +12,7 @@ dl_dir="${cwd}/dl"
 
 # Android version specific variables
 selection="$(echo $1 | tr '[:upper:]' '[:lower:]')"
-img_url="$(head -1 `cat ${cwd}/${selection}/urls`)"
+img_url="$(head -1 ${cwd}/${selection}/urls)"
 img_sig_url="${img_url}.md5"
 img="SWR-"${img_url##*/}""
 img_sig="${img_sig_url##*/}"
@@ -64,7 +64,15 @@ GetImgFiles() {
 }
 
 Main() {
-	
+	# TODO : Build android
+	# Create directories
+	mkdir -p ${dl_dir} ${build_dir}
+
+	echo "Downloading image..."
+	GetImgFiles
+
+	echo "Downloading Hekate..."
+	wget -P ${dl_dir} -q --show-progress ${hekate_url} -O ${hekate_zip}
 }
 
 # Parse arguments

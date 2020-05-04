@@ -2,7 +2,7 @@
 
 # Pre install configurations
 ## Workaround for flakiness of `pt` mirror.
-sed -i 's/mirror.archlinuxarm.org/de.mirror.archlinuxarm.org/g' /etc/pacman.d/mirrorlist
+sed -i 's/mirror.archlinuxarm.org/de3.mirror.archlinuxarm.org/g' /etc/pacman.d/mirrorlist
 echo -e "[switch]\nSigLevel = Optional\nServer = https://9net.org/l4t-arch/" >> /etc/pacman.conf
 
 # Configuring pacman

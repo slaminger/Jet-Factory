@@ -1,23 +1,22 @@
 #!/bin/env bash
 
 # Setup variables
-docker=true
+docker=false
 staging=false
 hekate=false
 
 pkg_types=*.{pkg.*,rpm,deb}
 format=ext4
 loop=`losetup --find`
-size=$(du -hs -BM "${build_dir}" | head -n1 | awk '{print int($1/4)*4 + 4 + 512;}')M
 
 # Folders
-cwd="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+cwd="$(dirname "$(readlink -f "$0")")"
 build_dir="${cwd}/build"
 dl_dir="${cwd}/dl"
 
 # Distro specific variables
-selection="$(echo $1 | tr '[:upper:]' '[:lower:]')"
-img_url="$(head -1 `cat ${cwd}/install/${selection}/urls`)"
+selection="$(echo ${@: -1} | tr '[:upper:]' '[:lower:]')"
+img_url="$(head -1 ${cwd}/install/${selection}/urls)"
 img_sig_url="${img_url}.md5"
 img="${img_url##*/}"
 img_sig="${img_sig_url##*/}"
@@ -45,13 +44,12 @@ SetDistro() {
 }
 
 usage() {
-    echo "Usage: $0 [options] distribution-name"
+    echo "Usage: $0 [options] <distribution-name>"
     echo "Options:"
-	echo " -n, --no-docker          Build without Docker"
+	echo " -d, --docker          	Build with Docker"
 	echo " -f, --force             	Download setup files anyway"
 	echo " --hekate                 Build for Hekate"
     echo " -s, --staging            Install built local packages"
-    echo " --distro <name>          Select a distro to install"
     echo " -h, --help               Show this help text"
 }
 
@@ -61,18 +59,18 @@ GetImgFiles() {
 
 	# Download file if it doesn't exist, or is forced to download.
 	if [[ ! -f ${img} || $1 == "force" ]]; then 
-		wget -q --show-progress ${img_url} -O ${img}
+		wget -q --show-progress ${img_url} -O "${dl_dir}/${img}"
 	else
 		echo "Image exists!"
 	fi
 	
 	# Download signature file
 	echo "Downloading signature file..."
-	wget -q --show-progress ${img_sig_url} -O ${img_sig}
+	wget -q --show-progress ${img_sig_url} -O "${dl_dir}/${img_sig}"
 	
 	# Check image against signature
 	echo "Validating image..."
-	$validate_command
+	${validate_command}
 	if [[ $? != "0" ]]; then
 		echo "Image doesn't match signature, re-downloading..."
 		GetImgFiles force
@@ -83,16 +81,17 @@ GetImgFiles() {
 
 Main() {
 	# Create directories
-	mkdir -p ${dl_dir} ${build_dir}
+	mkdir -p ${dl_dir} 
+	mkdir -p ${build_dir}/{switchroot/install/pkgs,boot/}
 
 	echo "Downloading image..."
 	GetImgFiles
 
 	echo "Downloading Hekate..."
-	wget -P ${dl_dir} -q --show-progress ${hekate_url} -O ${hekate_zip}
+	wget -P ${dl_dir} -q --show-progress ${hekate_url} -O ${dl_dir}/${hekate_zip}
 	
 	# cd into script current working directory
-	cd ${cwd}
+	cd ${build_dir}
 	
 	echo "Extracting image..."
 	[[ $(file -b --mime-type "${dl_dir}/${img}") == "application/gzip" ]] && tar xf ${dl_dir}/${img} -C ${build_dir}
@@ -101,13 +100,12 @@ Main() {
 	[[ $(file -b --mime-type "${dl_dir}/${img}") == "application/x-7z-compressed" ]] && 7z e "${dl_dir}/${img}" -o${build_dir}
 	
 	echo "Extracting Hekate..."
-	unzip -q -o ${dl_dir}/${hekate_zip} -d ${dl_dir}
-	mkdir -p ${build_dir}/{switchroot/install/pkgs,boot/}
+	unzip -q -o ${dl_dir}/${hekate_zip} -d "${build_dir}/boot"
 
 	echo "Copying files to rootfs..."
-	[[ ${staging} == "yes" ]] && cp -r ${cwd}/pkgbuilds/*/${pkg_types} ${build_dir}/pkgs/
-	cp ${cwd}/{build-stage2.sh,base-pkgs} ${build_dir}
-	mv ${dl_dir}/${hekate_bin} ${build_dir}/lib/firmware/reboot_payload.bin
+	[[ ${staging} == "yes" ]] && cp -r "${cwd}/install/${selection}/*/*/${pkg_types}" "${build_dir}/pkgs/"
+	cp ${cwd}/install/${selection}/{build-stage2.sh,base-pkgs} ${build_dir}
+	mv "${dl_dir}/${hekate_bin}" ${build_dir}/lib/firmware/reboot_payload.bin
 	
 	echo "Pre chroot setup..."
 	echo -e "/dev/mmcblk0p1	/boot	vfat	rw,relatime	0	2\n" >> ${build_dir}/etc/fstab
@@ -115,21 +113,23 @@ Main() {
 	chmod +x ${build_dir}/build-stage2.sh
 	
 	mount --bind ${build_dir} ${build_dir} &&
-	mount --bind  ${build_dir}/boot/ ${build_dir}/boot/
+	mount --bind  "${build_dir}/boot/" "${build_dir}/boot/"
 	
 	echo "Chrooting..."
-	arch-chroot ${build_dir} /build-stage2.sh
-	
+	cd ${cwd}
+	arch-chroot ${build_dir} ./build-stage2.sh
+
 	echo "Post chroot cleaning..."
+	umount "${build_dir}/boot/" ${build_dir}
 	rm -rf ${build_dir}/{base-pkgs,build-stage2.sh,pkgs/,usr/bin/qemu-aarch64-static}
-	umount ${build_dir}/boot/
 	
 	echo "Creating final "${format}" partition..."
-	dd if=/dev/zero of="${img}.${format}" bs=1 count=0 seek=${size} && losetup ${loop} ${img}
+	size=$(du -hs -BM "${build_dir}" | head -n1 | awk '{print int($1/4)*4 + 4 + 512;}')M
+	dd if=/dev/zero of="${img}.${format}" bs=1 count=0 seek=${size} && losetup ${loop} "${img}.${format}"
 
 	echo "Formating "${img}.${format}" to: "${format}"..."
 	[[ $(file -b --mime-type "${dl_dir}/${img}") == "application/octet-stream" ]] &&
-	[[ $(file -b "${dl_dir}/${img}" | sed -E 's/ID=0x8(e|3)//g') != 0 ]] && vgchange -ay ${selection}
+	[[ $(file -b "${dl_dir}/${img}" | sed -E 's/ID=0x8(e|3)//g') == 0 ]] && vgchange -ay ${selection}
 	mount ${loop} ${build_dir} && mkfs.${format} -F ${loop}
 
 	if [[ ${hekate} == "yes" ]]; then
@@ -137,13 +137,13 @@ Main() {
 		split -b4290772992 --numeric-suffixes=0 "${img}.${format}" l4t.
 	
 		echo "Compressing hekate folder..."
-		7z a "SWR-${img}.7z" ${build_dir}/{bootloader,switchroot}/
+		7z a "SWR-${img}.7z" ${build_dir}/{bootloader,switchroot}
 	else
 		echo "Creating fat32 image file..."
 		size=$(du -hs -BM "${build_dir}/boot" | head -n1 | awk '{print int($1/4)*4 + 4 + 512;}')M
 		loop=`losetup --find`
-		dd if=/dev/zero of="${img}.fat32" bs=1 count=0 seek=${size} && losetup ${loop} ${img}
-		mount ${loop} ${build_dir}/boot && mkfs.vfat 32 -F ${loop}
+		dd if=/dev/zero of="${img}.fat32" bs=1 count=0 seek=${size} && losetup ${loop} "${img}.fat32"
+		mount ${loop} "${build_dir}/boot" && mkfs.vfat 32 -F ${loop}
 		
 		echo "Creating final image: ${img}.img..."
 		dd if="${img}.fat32" bs=1M count=99 skip=1 of="SWR-${img}.img"
@@ -151,26 +151,25 @@ Main() {
 	fi
 
 	echo "Cleaning up files..."
-	[[ $(file -b "${dl_dir}/${img}" | sed -E 's/ID=0x8(e|3)//g') != 0 ]] && vgchange -an ${selection}	
+	[[ $(file -b "${dl_dir}/${img}" | sed -E 's/ID=0x8(e|3)//g') == 0 ]] && vgchange -an ${selection}	
 	losetup -d ${loop}
-	umount ${build_dir} ${loop}
-	rm -r ${build_dir}/*
+	umount ${loop} ${build_dir}
+	rm -r ${build_dir}
 	echo "Done!"
 }
 
 # Parse arguments
-options=$(getopt -n $0 -o dfhns --long force,hekate,no-docker,staging,distro:,help -- "$@")
+options=$(getopt -n $0 -o dfhs --long docker,force,hekate,staging:,help -- "$@")
 
 # Check for errors in arguments or if no name was provided
-if [[ $? != "0" ]] && [[ "${BASH_ARGV[0]}" =~ options ]]; then usage; exit 1; fi
+if [[ $? != "0" ]] || [[ "${@: -1}" =~ options ]]; then usage; exit 1; fi
 
 # Evaluate arguments
 eval set -- "$options"
 while true; do
     case "$1" in
-    -d | --distro) SetDistro $2 ; shift 2 ;;
+	-d | --docker) docker=true; shift ;;
 	-f | --force) force=true; shift ;;
-	-n | --no-docker) docker=false; shift ;;
     -s | --staging) staging=true; shift ;;
 	--hekate) hekate=true; shift ;;
     ? | -h | --help) usage; exit 0 ;;
@@ -178,4 +177,18 @@ while true; do
     esac
 done
 
+echo "Cleaning up old Files..."
+if [[ ${docker} == true ]]; then
+	rm -rf ${build_dir}
+
+	echo "Starting using Docker..."
+	systemctl start docker.{socket,service}
+
+	echo "Building Docker image..."
+	docker image build -t l4t-builder:1.0 .
+	
+	echo "Running container..."
+	docker run --privileged --cap-add=SYS_ADMIN --rm -it -v ${cwd}:/builder l4t-builder:1.0 /builder/create-rootfs.sh "$(echo "$options" | sed -E 's/-(d|-docker)//g')" ${selection}
+	exit 0
+fi
 Main
