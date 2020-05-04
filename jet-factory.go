@@ -31,6 +31,7 @@ var (
 	isVariant                                        = true
 	root                                             interface{}
 
+	// TODO : Replace this by parsing config.yaml file
 	distributionsMap = map[string]map[string][]string{
 		"arch": {
 			"urls":    {"http://os.archlinuxarm.org/os/ArchLinuxARM-aarch64-latest.tar.gz"},
@@ -40,7 +41,7 @@ var (
 		},
 		"fedora": {
 			"urls":    {"http://mirrors.ircam.fr/pub/fedora/linux/version-releases/${version}/Server/aarch64/images/Fedora-${version-release}.raw.xz"},
-			"de":      {"XFCE Desktop", "LXDE Desktop"},
+			"de":      {"Xfce Desktop", "LXDE Desktop"},
 			"configs": {},
 			"pkgs":    {},
 		},
@@ -135,6 +136,7 @@ func GenVersionTag(version, desktop string) string {
 		log.Println("Using latest version avalaible !")
 		GenVersionTag(version, desktop)
 	} else {
+		// TODO :
 		// Try to query version number
 		// if !(version) {
 		// If fails default to latest
@@ -180,18 +182,17 @@ func JetFactory(name, version, desktop string, configs, pkgs []string) (p *os.Pr
 	// Create dir - dir format : ${distributionName}-${version}-aarch64-${date} && // Wget Dockerfile from github to volume dir && // Replace variables in Dockerfile
 	_, mkdir := SpawnProcess("mkdir", "-p", outputDir)
 	_, get := SpawnProcess("wget", "https://raw.githubusercontent.com/Azkali/Jet-Factory/master/Dockerfile", "-P", outputDir)
-	_, sed := SpawnProcess("sed", "-i", "\"s/URL\"/"+selectedMirror+"/g;", "\"s/NAME\"/"+name+"/g;", outputDir+"Dockerfile")
+	_, sed := SpawnProcess("sed", "-i", "\"s/URL\"/"+selectedMirror+"/g;", "\"s/NAME\"/"+name+"/g;", outputDir+"create-rootfs.sh")
 
 	// Start docker && // Create image && // Run container build process attach buildir as volume to container
 	_, start := SpawnProcess("systemctl", "start", "docker.service", "docker.socket")
 	_, img := SpawnProcess("docker", "image build -t", "l4tbuild:1.0", outputDir)
-	_, run := SpawnProcess("docker", "run --privileged --cap-add=SYS_ADMIN --rm -it", "-v", outputDir+":/root/builder/", "l4tbuild:1.0", "/root/builder/create-rootfs.sh")
 
-	if !(mkdir == nil && get == nil && start == nil && img == nil && run == nil && sed == nil) {
+	if !(mkdir == nil && get == nil && sed == nil && start == nil && img == nil) {
 		panic(err)
 	} else {
 		// 7z directory with L4S-${distributionName}-${version}-aarch64-${date}.7z format
-		proc, err := SpawnProcess("dd", "of="+"./L4S"+outputDir+".img", "if="+outputDir+"/*", "bs=4M")
+		proc, err := SpawnProcess("docker", "run --privileged --cap-add=SYS_ADMIN --rm -it", "-v", outputDir+":/root/builder/", "l4tbuild:1.0", "/root/builder/create-rootfs.sh")
 		return proc, err
 	}
 }

@@ -1,91 +1,181 @@
-#!/usr/bin/bash
+#!/bin/env bash
 
-build_dir=/${HOME}/l4t/
-url=ROOTFS_URL
-archive="$(cut -d \"/\" -f1 ${url})"
+# Setup variables
+docker=true
+staging=false
+hekate=false
+
+pkg_types=*.{pkg.*,rpm,deb}
+format=ext4
+loop=`losetup --find`
+size=$(du -hs -BM "${build_dir}" | head -n1 | awk '{print int($1/4)*4 + 4 + 512;}')M
+
+# Folders
+cwd="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+build_dir="${cwd}/build"
+dl_dir="${cwd}/dl"
+
+# Distro specific variables
+selection="$(echo $1 | tr '[:upper:]' '[:lower:]')"
+img_url="$(head -1 `cat ${cwd}/install/${selection}/urls`)"
+img_sig_url="${img_url}.md5"
+img="${img_url##*/}"
+img_sig="${img_sig_url##*/}"
+validate_command="md5sum --status -c "${img_sig}""
+
+# Hekate files
 hekate_version=5.2.0
 nyx_version=0.9.0
+hekate_url=https://github.com/CTCaer/hekate/releases/download/v${hekate_version}/hekate_ctcaer_${hekate_version}_Nyx_${nyx_version}.zip
+hekate_zip=${hekate_url##*/}
+hekate_bin=hekate_ctcaer_${hekate_version}.bin
 
-prepareFiles() {
-	mkdir -p ${build_dir}/{{r,b}ootfs,tmp,switchroot/install/}
-	
-	wget https://github.com/CTCaer/hekate/releases/download/v${hekate_version}/hekate_ctcaer_${hekate_version}_Nyx_${nyx_version}.zip -P ${build_dir}
-	wget ${url} -P ${build_dir} &&
-
-	# TODO : Extract and copy rootfs files condition
-	if ![[ ${archive} == *.raw.*]] || ; then
-		bsdtar xpf ${build_dir}/${archive} -C ${build_dir}/rootfs/
-	elif [[ ${archive} == *.raw.xz ]]; then
+SetDistro() {
+	if [[ ${selection} == "arch" ]]; then
+		img_sig_url="${img_url}.md5"
+		validate_command="md5sum --status -c "${img_sig}""
+	elif [[ ${selection} == "fedora" ]]; then
+		img_sig_url=https://download.fedoraproject.org/pub/fedora/linux/releases/31/Server/aarch64/images/Fedora-Server-31-1.9-aarch64-CHECKSUM
+		validate_command="sha256sum --status -c "${img_sig}""
+	else
+		echo "$0: invalid distro option: $1"
+		usage
+		exit 1
 	fi
-
-	unzip ${build_dir}/hekate_ctcaer_${hekate_version}_Nyx_${nyx_version}.zip hekate_ctcaer_${hekate_version}.bin
-	mv hekate_ctcaer_${hekate_version}.bin ${build_dir}/rootfs/lib/firmware/reboot_payload.bin
-	rm ${build_dir}/hekate_ctcaer_${hekate_version}_Nyx_${nyx_version}.zip
 }
 
-setup() {
-	echo -e "/dev/mmcblk0p1	/boot	vfat	rw,relatime	0	2\n" >> ${build_dir}/rootfs/etc/fstab
-	sed -i 's/^HOOKS=(\(.*\))$/HOOKS=(\1 resize-rootfs)/' ${build_dir}/rootfs/etc/mkinitcpio.conf
-	cp /usr/bin/qemu-aarch64-static ${build_dir}/rootfs/usr/bin/
-
-	mount --bind ${build_dir}/rootfs ${build_dir}/rootfs
-	mount --bind ${build_dir}/bootfs ${build_dir}/rootfs/boot/
-
-	if ${arch}; then
-		# Workaround for flakiness of `pt` mirror.
-		sed -i 's/mirror.archlinuxarm.org/de.mirror.archlinuxarm.org/g' ${build_dir}/rootfs/etc/pacman.d/mirrorlist
-		echo "[switch]\nSigLevel = Optional\nServer = https://9net.org/l4t-arch/" >> ${build_dir}/rootfs/etc/pacman.conf
-
-		# Install Packages
-		arch-chroot ${build_dir}/rootfs/
-		# Install configs
-		arch-chroot ${build_dir}/rootfs/
-
-		rm ${build_dir}/rootfs/etc/pacman.d/gnupg/S.gpg-agent*
-	elif ${fedora}; then
-		# Install Packages
-		arch-chroot ${build_dir}/rootfs/
-		# Install configs
-		arch-chroot ${build_dir}/rootfs/
-	elif ${opensuse}; then
-		# Install Packages
-		arch-chroot ${build_dir}/rootfs/
-		# Install configs
-		arch-chroot ${build_dir}/rootfs/
-	fi
-
-	rm ${build_dir}/rootfs/usr/bin/qemu-aarch64-static
-	umount -R ${build_dir}/rootfs/{,boot/}
-	mv ${build_dir}/bootfs/* ${build_dir}/
+usage() {
+    echo "Usage: $0 [options] distribution-name"
+    echo "Options:"
+	echo " -n, --no-docker          Build without Docker"
+	echo " -f, --force             	Download setup files anyway"
+	echo " --hekate                 Build for Hekate"
+    echo " -s, --staging            Install built local packages"
+    echo " --distro <name>          Select a distro to install"
+    echo " -h, --help               Show this help text"
 }
 
-buildimg() {
-	size=$(du -hs -BM ${build_dir}/rootfs/ | head -n1 | awk '{print int($1/4)*4 + 4 + 512;}')M
-	echo "Estimated rootfs size: $size"
+GetImgFiles() {
+	# cd into download directory
+	cd ${dl_dir}
 
-	dd if=/dev/zero of=${build_dir}/switchroot/install/l4t.img bs=1 count=0 seek=$size
+	# Download file if it doesn't exist, or is forced to download.
+	if [[ ! -f ${img} || $1 == "force" ]]; then 
+		wget -q --show-progress ${img_url} -O ${img}
+	else
+		echo "Image exists!"
+	fi
 	
-	loop=`losetup --find`
-	losetup ${loop} ${build_dir}/switchroot/install/l4t.img
+	# Download signature file
+	echo "Downloading signature file..."
+	wget -q --show-progress ${img_sig_url} -O ${img_sig}
+	
+	# Check image against signature
+	echo "Validating image..."
+	$validate_command
+	if [[ $? != "0" ]]; then
+		echo "Image doesn't match signature, re-downloading..."
+		GetImgFiles force
+	else
+		echo "Signature check passed!"
+	fi
+}
 
-	mkfs.ext4 ${loop}
-	mount ${loop} ${build_dir}/tmp
+Main() {
+	# Create directories
+	mkdir -p ${dl_dir} ${build_dir}
 
-	mv ${build_dir}/rootfs/* ${build_dir}/tmp/
+	echo "Downloading image..."
+	GetImgFiles
 
-	umount ${loop}
+	echo "Downloading Hekate..."
+	wget -P ${dl_dir} -q --show-progress ${hekate_url} -O ${hekate_zip}
+	
+	# cd into script current working directory
+	cd ${cwd}
+	
+	echo "Extracting image..."
+	[[ $(file -b --mime-type "${dl_dir}/${img}") == "application/gzip" ]] && tar xf ${dl_dir}/${img} -C ${build_dir}
+	[[ $(file -b --mime-type "${dl_dir}/${img}") == "application/x-xz" ]] && unxz "${dl_dir}/${img}"
+	[[ $(file -b --mime-type "${dl_dir}/${img}") == "application/zip" ]] && unzip -q -o"${dl_dir}/${img}" -d ${build_dir}
+	[[ $(file -b --mime-type "${dl_dir}/${img}") == "application/x-7z-compressed" ]] && 7z e "${dl_dir}/${img}" -o${build_dir}
+	
+	echo "Extracting Hekate..."
+	unzip -q -o ${dl_dir}/${hekate_zip} -d ${dl_dir}
+	mkdir -p ${build_dir}/{switchroot/install/pkgs,boot/}
+
+	echo "Copying files to rootfs..."
+	[[ ${staging} == "yes" ]] && cp -r ${cwd}/pkgbuilds/*/${pkg_types} ${build_dir}/pkgs/
+	cp ${cwd}/{build-stage2.sh,base-pkgs} ${build_dir}
+	mv ${dl_dir}/${hekate_bin} ${build_dir}/lib/firmware/reboot_payload.bin
+	
+	echo "Pre chroot setup..."
+	echo -e "/dev/mmcblk0p1	/boot	vfat	rw,relatime	0	2\n" >> ${build_dir}/etc/fstab
+	sed -r -i 's/^HOOKS=((.*))$/HOOKS=(\1 resize-rootfs)/' ${build_dir}/etc/mkinitcpio.conf
+	chmod +x ${build_dir}/build-stage2.sh
+	
+	mount --bind ${build_dir} ${build_dir} &&
+	mount --bind  ${build_dir}/boot/ ${build_dir}/boot/
+	
+	echo "Chrooting..."
+	arch-chroot ${build_dir} /build-stage2.sh
+	
+	echo "Post chroot cleaning..."
+	rm -rf ${build_dir}/{base-pkgs,build-stage2.sh,pkgs/,usr/bin/qemu-aarch64-static}
+	umount ${build_dir}/boot/
+	
+	echo "Creating final "${format}" partition..."
+	dd if=/dev/zero of="${img}.${format}" bs=1 count=0 seek=${size} && losetup ${loop} ${img}
+
+	echo "Formating "${img}.${format}" to: "${format}"..."
+	[[ $(file -b --mime-type "${dl_dir}/${img}") == "application/octet-stream" ]] &&
+	[[ $(file -b "${dl_dir}/${img}" | sed -E 's/ID=0x8(e|3)//g') != 0 ]] && vgchange -ay ${selection}
+	mount ${loop} ${build_dir} && mkfs.${format} -F ${loop}
+
+	if [[ ${hekate} == "yes" ]]; then
+		echo "Creating Hekate installable files..."
+		split -b4290772992 --numeric-suffixes=0 "${img}.${format}" l4t.
+	
+		echo "Compressing hekate folder..."
+		7z a "SWR-${img}.7z" ${build_dir}/{bootloader,switchroot}/
+	else
+		echo "Creating fat32 image file..."
+		size=$(du -hs -BM "${build_dir}/boot" | head -n1 | awk '{print int($1/4)*4 + 4 + 512;}')M
+		loop=`losetup --find`
+		dd if=/dev/zero of="${img}.fat32" bs=1 count=0 seek=${size} && losetup ${loop} ${img}
+		mount ${loop} ${build_dir}/boot && mkfs.vfat 32 -F ${loop}
+		
+		echo "Creating final image: ${img}.img..."
+		dd if="${img}.fat32" bs=1M count=99 skip=1 of="SWR-${img}.img"
+		dd if="${img}.${format}" bs=1M count=10 of="SWR-${img}.img" oflag=append conv=notrunc
+	fi
+
+	echo "Cleaning up files..."
+	[[ $(file -b "${dl_dir}/${img}" | sed -E 's/ID=0x8(e|3)//g') != 0 ]] && vgchange -an ${selection}	
 	losetup -d ${loop}
-
-	cd ${build_dir}/switchroot/install/
-	split -b4290772992 --numeric-suffixes=0 l4t.img l4t.
-
-	rm -rf ${build_dir}/{{b,r}ootfs/,tmp/,switchroot/install/l4t.img}
+	umount ${build_dir} ${loop}
+	rm -r ${build_dir}/*
+	echo "Done!"
 }
 
-echo "\nPreparing required files\n"
-prepareFiles &&
-echo "\nCreating rootfs\n"
-setup &&
-echo "\nBuilding image file\n"
-buildimg &&
-echo "Done!\n"
+# Parse arguments
+options=$(getopt -n $0 -o dfhns --long force,hekate,no-docker,staging,distro:,help -- "$@")
+
+# Check for errors in arguments or if no name was provided
+if [[ $? != "0" ]] && [[ "${BASH_ARGV[0]}" =~ options ]]; then usage; exit 1; fi
+
+# Evaluate arguments
+eval set -- "$options"
+while true; do
+    case "$1" in
+    -d | --distro) SetDistro $2 ; shift 2 ;;
+	-f | --force) force=true; shift ;;
+	-n | --no-docker) docker=false; shift ;;
+    -s | --staging) staging=true; shift ;;
+	--hekate) hekate=true; shift ;;
+    ? | -h | --help) usage; exit 0 ;;
+    -- ) shift; break ;;
+    esac
+done
+
+Main
