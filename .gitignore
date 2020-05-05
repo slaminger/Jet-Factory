@@ -20,6 +20,9 @@
 *.ext4
 *.ext3
 *.ext2
+*.rpm
+*.pkg.*
+*.deb
 
 # Build dirs
 dl/

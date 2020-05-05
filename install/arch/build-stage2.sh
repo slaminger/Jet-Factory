@@ -15,10 +15,10 @@ pacman -R linux-aarch64 --noconfirm
 
 i=5
 echo -e "\n\nBeginning packages installation!\nRetry attempts left: ${i}"
-until pacman -Syu `cat /base-pkgs` --noconfirm; do
+until [[ ${i} == 0 ]] || pacman -Syu `cat /base-pkgs` --noconfirm; do
+	pacman -Syu `cat /base-pkgs` --noconfirm
 	echo -e "\n\nPackages installation failed, retrying!\nRetry attempts left: ${i}"
 	let --i
-	[[ ${i} == 0 ]] && echo -e "\n\nBuilding failed!\nExiting..." && exit 1
 done
 
 

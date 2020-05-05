@@ -8,8 +8,8 @@ AIO universal L4T distribution builder
 Usage: create-rootfs.sh [options] <distribution-name>
 Options:
   -d, --docker             Build with Docker
-  -f, --force              Download setup files anyway
   --hekate                 Build for Hekate
+  -k, --keep               Keep downloaded files
   -s, --staging            Install built local packages
   -h, --help               Show this help text
 ```

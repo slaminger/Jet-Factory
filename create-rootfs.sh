@@ -12,15 +12,13 @@ loop=`losetup --find`
 
 # Folders
 cwd="$(dirname "$(readlink -f "$0")")"
-build_dir="${cwd}/build"
-dl_dir="${cwd}/dl"
+dl_dir="${cwd}/builds/dl"
 
 # Distro specific variables
 selection="$(echo ${@: -1} | tr '[:upper:]' '[:lower:]')"
+build_dir="${cwd}/builds/${selection}-build"
 img_url="$(head -1 ${cwd}/install/${selection}/urls)"
 img="${img_url##*/}"
-img_sig_url="${img_url}.md5"
-img_sig="${img_sig_url##*/}"
 
 # Hekate files
 hekate_version=5.2.0
@@ -29,20 +27,22 @@ hekate_url=https://github.com/CTCaer/hekate/releases/download/v${hekate_version}
 hekate_zip=${hekate_url##*/}
 hekate_bin=hekate_ctcaer_${hekate_version}.bin
 
-(
+# TODO : To be replaced by yaml using go
+SetDistro() {
 	if [[ ${selection} == "arch" ]]; then
 		img_sig_url="${img_url}.md5"
-		validate_command="md5sum --status -c "${img_sig}""
+		img_sig="${img_sig_url##*/}"
+		validate_command="md5sum --status -c "${dl_dir}/${img_sig}""
 	elif [[ ${selection} == "fedora" ]]; then
 		img_sig_url=https://download.fedoraproject.org/pub/fedora/linux/releases/31/Server/aarch64/images/Fedora-Server-31-1.9-aarch64-CHECKSUM
-		validate_command="sha256sum --status -c "${img_sig}""
-		img_sig_url="Fedora-Server-31-1.9-aarch64-CHECKSUM"
+		img_sig="${img_sig_url##*/}"
+		validate_command="sha256sum --status -c "${dl_dir}/${img_sig}""
 	else
 		echo "$0: invalid distro option: $1"
 		usage
 		exit 1
 	fi
-)
+}
 
 usage() {
     echo "Usage: $0 [options] <distribution-name>"
@@ -73,57 +73,133 @@ GetImgFiles() {
 	# Download signature file
 	echo "Downloading signature file..."
 	wget -q --show-progress ${img_sig_url} -O "${dl_dir}/${img_sig}"
-	
 }
 
 ExtractFiles() {
-	# Will check for a dir with the name of the arcihve without extensions
+	echo "Extracting downloaded archive file..."
+	[[ ! -f "${dl_dir}/${img%.*}" ]] && dtrx -f ${dl_dir}/${img}
+
 	[[ "${dl_dir}/${img%.*}" =~ '.tar' ]] && cd ${build_dir} &&
-	dtrx -f ${dl_dir}/${img} && tar xf ${img%.*} && rm ${img%.*}
+	dtrx -f ${dl_dir}/${img} && tar xf ${img%.*} &>/dev/null &&
+	rm ${img%.*}
 
-	# Will check for a dir with the name of the arcihve with 1st extension only
-	[[ ! -f "${dl_dir}/${img%.*}" ]] &&
-	dtrx -f ${dl_dir}/${img}
-
+	echo "Searching for image file..."
 	if [[ $(file -b --mime-type "${dl_dir}/${img%.*}") == "application/octet-stream" ]]; then
-		echo "Searching for LVM2 partition type..."
-		kpartx -av "${dl_dir}/${img%.*}"
-
-		# Use this for non LVM partition
-		if [[ $(file -b "${dl_dir}/${img%.*}" | grep "[[:digit:]] : ID=0x8e.*") ]]; then
-			echo "Found LVM2 partition..."
-			vgchange -ay
-			sleep 2
-			mount_part="/dev/$(vgchange -ay | grep -o '".*"' | sed 's/"//g')/root"
-			sleep 2
-		else
-			echo "Didn't found LVM2 partition..." && $loop
-			mount_part="/dev/mapper/${loop##*/}p$(file -b "${dl_dir}/${img%.*}" |  grep -o "partition 2.*" | grep -o "[[:digit:]] : ID=0x83.*" | cut -d' ' -f1)"
-			sleep 2
-		fi
+		
+		echo "Preparing image file..."
+		loop=$(kpartx -l "${dl_dir}/${img%.*}" | grep -o -E 'loop[[:digit:]]' | head -1)
+		kpartx -a "${dl_dir}/${img%.*}"
 		
 		echo "Mounting partition..."
-		mount ${mount_part} "${build_dir}/bootloader/"
+		echo "Searching for LVM2 partition type..."
+		[[ $(file -b "${dl_dir}/${img%.*}" | grep "[[:digit:]] : ID=0x8e.*") ]] &&
+		
+			echo "Found LVM2 partition..."  && echo "Searching for rootfs partition..." &&
+			rootname=$(lvs | sed 's/root//' | tail -1 | grep -o -E '[[:alpha:]]{3}+') &&
+			mount /dev/mapper/${rootname}-root "${build_dir}/switchroot/install" ||
+
+			# TODO : Shouldn't try to mount 1st ext2,3,4 partition but biggest
+			echo "Didn't found LVM2 partition..." &&
+			num=$(file -b "${dl_dir}/${img%.*}" | grep -o "[[:digit:]] : ID=0x83.*" | cut -d' ' -f1) ||
+			mount /dev/${loop}p${num} "${build_dir}/switchroot/install"
 
 		echo "Copying files to build directory..."
-		cp -prd "${build_dir}/bootloader/" ${build_dir} 2>/dev/null
+		cp -prd ${build_dir}/switchroot/install/* ${build_dir} 2>/dev/null
 		
-		[[ $(file -b "${dl_dir}/${img%.*}" | grep "[[:digit:]] : ID=0x8e.*") ]] &&
-		vgchange -an
-		umount "${build_dir}/bootloader/"
-		kpartx -d "${dl_dir}/${img%.*}"
-		losetup -d ${loop}
+		echo "Unmounting partition..."
+		[[ ! -z ${rootname} ]] && vgchange -an
+		umount "${build_dir}/bootloader/" && kpartx -d "${dl_dir}/${img%.*}"
 	fi
 
-	cd ${build_dir}
 	echo "Extracting Hekate..."
+	cd ${build_dir}
 	dtrx -f ${dl_dir}/${hekate_zip}
 	cd ${cwd}
 }
 
+PreChroot() {
+	[[ ${staging} == true ]] && echo "Copying staging files to rootfs..." &&
+	cp -r "${cwd}/install/${selection}/*/*/*.${pkg_types}" "${build_dir}/pkgs/" 2>/dev/null
+	
+	echo "Copying files to rootfs..."
+	cp ${cwd}/install/${selection}/{build-stage2.sh,base-pkgs} ${build_dir}
+	mv "${build_dir}/${hekate_bin}" "${build_dir}/lib/firmware/reboot_payload.bin"
+	
+	echo "Pre chroot setup..."
+	echo -e "/dev/mmcblk0p1	/boot	vfat	rw,relatime	0	2\n" >> "${build_dir}/etc/fstab"
+	# sed -r -i 's/^HOOKS=((.*))$/HOOKS=(\1 resize-rootfs)/' "${build_dir}/etc/mkinitcpio.conf"
+	chmod +x "${build_dir}/build-stage2.sh"
+}
+
+Chroot() {
+	mount --bind ${build_dir} ${build_dir} &&
+	mount --bind  "${build_dir}/bootloader/" "${build_dir}/boot/"
+	
+	echo "Chrooting..."
+	# TODO : Golang : Build stage2 will be replaced by configs and packages installation
+	arch-chroot ${build_dir} ./build-stage2.sh || exit 1
+	
+	echo "Copying switch boot files..."
+	mv ${build_dir}/bootloader/* ${build_dir}
+	rm -rf ${build_dir}/bootloader/*
+
+	echo "Post chroot cleaning..."
+	umount "${build_dir}/boot/" && umount ${build_dir}
+	rm -rf ${build_dir}/{base-pkgs,build-stage2.sh,pkgs/,usr/bin/qemu-aarch64-static}
+}
+
+PostChroot() {
+	size=$(du -hs -BM ${build_dir} | head -n1 | awk '{print int($1/4)*4 + 4 + 512;}')M
+	echo "Creating final ${format} partition... Estimated size : ${size}"
+	dd if=/dev/zero of="${cwd}/${img%%.*}" bs=1 count=0 seek=${size} status=noxfer
+	
+	echo "Creating"${img%%.*}" with ${format} format..."
+	ext4mnt=$(losetup --partscan --find --show "${img%%.*}")
+	yes | mkfs.${format} ${ext4mnt}
+	
+	echo "Copying files to ${format} partition..."
+	mount ${ext4mnt} "${build_dir}/switchroot/install/"
+	cp -prd ${build_dir}/* "${build_dir}/switchroot/install/" 2>/dev/null
+	
+	echo "Removing unneeded folders from partiton..."
+	rm -rf ${build_dir}/switchroot/install/{switchroot/,bootloader/}
+	umount ${ext4mnt} && losetup -d ${ext4mnt}
+
+	if [[ ${hekate} == true ]]; then
+		echo "Creating Hekate installable files..."
+		cd "${build_dir}/switchroot/install/"
+		split -b4290772992 --numeric-suffixes=0 ${cwd}/"${img%%.*}" l4t.
+		
+		echo "Compressing hekate folder..."
+		7z a ${cwd}/"SWR-${img%%.*}.7z" ${build_dir}/{bootloader,switchroot}
+	else
+		echo "Creating ${img%%.*}.fat32 with ${format} format..."
+		size=$(du -hs -BM "${build_dir}/bootloader" | head -n1 | awk '{print int($1/4)*4 + 4 + 512;}')M
+		dd if=/dev/zero of="${img%%.*}.fat32" bs=1 count=0 seek=${size} status=noxfer
+		fat32mnt=$(losetup --partscan --find --show "${img%%.*}".fat32)
+		yes | mkfs.vfat -F 32 ${fat32mnt}
+		
+		echo "Copying files to fat32 partition..."
+		mount ${fat32mnt} "${build_dir}/boot"
+		cp -r ${build_dir}/bootloader/* "${build_dir}/boot" 2>/dev/null
+		umount ${fat32mnt} && losetup -d ${fat32mnt}
+	
+		echo "Creating final image: ${img%%.*}.img..."
+		dd if="${img%%.*}.fat32" bs=1M count=99 skip=1 of="SWR-${img%%.*}.img" status=noxfer
+		dd if="${img%%.*}" bs=1M count=10 of="SWR-${img%%.*}.img" oflag=append conv=notrunc status=noxfer
+	fi
+}
+
 Main() {
+	echo "Cleaning up old builds..."
+	rm -rf ${build_dir} ${cwd}/${img%%.*}{,.fat32,.7z}
+	[[ ${keep} != true ]] && echo "Keeping previously downloaded files..." && rm -rf ${dl_dir}
+
 	echo "Create required directories..."
-	mkdir -p ${dl_dir} ${build_dir}/{switchroot/install/pkgs,bootloader/}
+	mkdir -p ${dl_dir} ${build_dir}/{bootloader,pkgs}
+
+	echo "Setting distro parameters..."
+	SetDistro
 
 	echo "Downloading image..."
 	GetImgFiles
@@ -131,62 +207,16 @@ Main() {
 	echo "Extracting image..."
 	ExtractFiles
 
-	echo "Copying files to rootfs..."
-	[[ ${staging} == true ]] && cp -r "${cwd}/install/${selection}/*/*/${pkg_types}" "${build_dir}/pkgs/" 2>/dev/null
-	cp ${cwd}/install/${selection}/{build-stage2.sh,base-pkgs} ${build_dir}
-	mv "${build_dir}/${hekate_bin}" ${build_dir}/lib/firmware/reboot_payload.bin
-	
-	echo "Pre chroot setup..."
-	echo -e "/dev/mmcblk0p1	/boot	vfat	rw,relatime	0	2\n" >> ${build_dir}/etc/fstab
-	sed -r -i 's/^HOOKS=((.*))$/HOOKS=(\1 resize-rootfs)/' ${build_dir}/etc/mkinitcpio.conf
-	chmod +x ${build_dir}/build-stage2.sh
-	
-	mount --bind ${build_dir} ${build_dir} &&
-	mount --bind  "${build_dir}/bootloader/" "${build_dir}/boot/"
+	echo "Pre Chroot setup..."
+	PreChroot
 	
 	echo "Chrooting..."
-	arch-chroot ${build_dir} ./build-stage2.sh || exit 1
-
-	echo "Post chroot cleaning..."
-	umount "${build_dir}/boot/"
-	umount ${build_dir}
-	rm -rf ${build_dir}/{base-pkgs,build-stage2.sh,pkgs/,usr/bin/qemu-aarch64-static}
-
-	echo "Creating final ${format} partition..."
-	size=$(du -hs -BM ${build_dir} | head -n1 | awk '{print int($1/4)*4 + 4 + 512;}')M
-	dd if=/dev/zero of="${img%%.*}" bs=1 count=0 seek=${size} status=noxfer
+	Chroot
 	
-	echo "Creating"${img%%.*}" with ${format} format..."
-	yes | mkfs.${format} "${img%%.*}"
-	mount -o loop "${img%%.*}" "${build_dir}/switchroot/install/"
-	cp -prd ${build_dir}/* "${build_dir}/switchroot/install/" 2>/dev/null
-	umount ${loop}
-
-	if [[ ${hekate} == true ]]; then
-		echo "Creating Hekate installable files..."
-		split -b4290772992 --numeric-suffixes=0 "${img%%.*}" l4t.
-	
-		echo "Compressing hekate folder..."
-		7z a ${cwd}/"SWR-${img%%.*}.7z" ${build_dir}/{bootloader,switchroot}
-	else
-		echo "Creating ${img%%.*}.fat32 with ${format} format..."
-		size=$(du -hs -BM "${build_dir}/bootloader" | head -n1 | awk '{print int($1/4)*4 + 4 + 512;}')M
-		dd if=/dev/zero of="${img%%.*}.fat32" bs=1 count=0 seek=${size} status=noxfer
-		losetup ${loop} "${img%%.*}.fat32"
-		yes | mkfs.vfat -F 32 ${loop}
-		
-		mount -o loop "${img%%.*}.fat32" "${build_dir}/boot"
-		cp -r ${build_dir}/bootloader/* "${build_dir}/boot" 2>/dev/null
-		umount ${loop}
-	
-		echo "Creating final image: ${img%%.*}.img..."
-		dd if="${img%%.*}.fat32" bs=1M count=99 skip=1 of="SWR-${img%%.*}.img" status=noxfer
-		dd if="${img%%.*}" bs=1M count=10 of="SWR-${img%%.*}.img" oflag=append conv=notrunc status=noxfer
-	fi
+	echo "Post Chroot setup..."
+	PostChroot
 
 	echo "Cleaning up files..."
-	losetup -d ${loop}
-	umount ${build_dir}
 	rm -rf ${build_dir} ${cwd}/${img%%.*}{,.fat32}
 	echo "Done!"
 }
@@ -196,6 +226,7 @@ options=$(getopt -n $0 -o dhks --long docker,keep,staging,hekate,help -- "$@")
 
 # Check for errors in arguments or if no name was provided
 if [[ $? != "0" ]] || [[ options =~ "${@: -1}" ]]; then usage; exit 1; fi
+[[ `whoami` != root ]] && echo "Run this as root!" && exit 1
 
 # Evaluate arguments
 eval set -- "$options"
@@ -210,17 +241,16 @@ while true; do
     esac
 done
 
-echo "Cleaning up old Files..."
-rm -rf ${build_dir} ${cwd}/${img%%.*}{,.fat32}
-[[ ${keep} == true ]] && rm -rf ${dl_dir}
-
 if [[ ${docker} == true ]]; then
+	echo "Cleaning up old builds..."
+	rm -rf ${build_dir} ${cwd}/${img%%.*}{,.fat32,.7z}
+	[[ ${keep} != true ]] && echo "Keeping previously downloaded files..." && rm -rf ${dl_dir}
 	echo "Starting Docker..."
 	systemctl start docker.{socket,service}
 	echo "Building Docker image..."
 	docker image build -t l4t-builder:1.0 .
 	echo "Running container..."
-	docker run --privileged --cap-add=SYS_ADMIN --rm -it -v ${cwd}:/builder l4t-builder:1.0 /bin/bash /builder/create-rootfs.sh $(echo "$options" | sed -E 's/-(d|-docker)//g' | grep -o -E '\-\-[[:alpha:]]+' | tr '\r\n' ' ') ${selection}
+	docker run --privileged --cap-add=SYS_ADMIN --rm -it -v ${cwd}:/builder l4t-builder:1.0 /bin/bash /builder/create-rootfs.sh $(echo "$options" | sed -E 's/-(d|-docker)//g' | grep -o -E '\-+[[:alpha:]]+' | tr '\r\n' ' ') ${selection}
 	exit 0
 fi
 
