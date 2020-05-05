@@ -65,29 +65,22 @@ GetImgFiles() {
 
 Main() {
 	# TODO : Build android
-	# Create directories
-	mkdir -p ${dl_dir} ${build_dir}
-
-	echo "Downloading image..."
-	GetImgFiles
-
-	echo "Downloading Hekate..."
-	wget -P ${dl_dir} -q --show-progress ${hekate_url} -O ${hekate_zip}
+	git clone https://github.com/PabloZaiden/switchroot-android-
+	cd switchroot-android-
+	./build.sh "${@: -1}"
 }
 
 # Parse arguments
 options=$(getopt -n $0 -o dfhns --long force,hekate,no-docker,staging,distro:,help -- "$@")
 
 # Check for errors in arguments or if no name was provided
-if [[ $? != "0" ]] && [[ "${BASH_ARGV[0]}" =~ options ]]; then usage; exit 1; fi
+if [[ $? != "0" ]] || [[ "${@: -1}" =~ options ]]; then usage; exit 1; fi
 
 # Evaluate arguments
 eval set -- "$options"
 while true; do
     case "$1" in
-    -d | --distro) SetDistro $2 ; shift 2 ;;
-	-f | --force) force=true; shift ;;
-	-n | --no-docker) docker=false; shift ;;
+	-d | --docker) docker=true; shift ;;
     -s | --staging) staging=true; shift ;;
 	--hekate) hekate=true; shift ;;
     ? | -h | --help) usage; exit 0 ;;

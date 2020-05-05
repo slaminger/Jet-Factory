@@ -182,7 +182,7 @@ func JetFactory(name, version, desktop string, configs, pkgs []string) (p *os.Pr
 	// Create dir - dir format : ${distributionName}-${version}-aarch64-${date} && // Wget Dockerfile from github to volume dir && // Replace variables in Dockerfile
 	_, mkdir := SpawnProcess("mkdir", "-p", outputDir)
 	_, get := SpawnProcess("wget", "https://raw.githubusercontent.com/Azkali/Jet-Factory/master/Dockerfile", "-P", outputDir)
-	_, sed := SpawnProcess("sed", "-i", "\"s/URL\"/"+selectedMirror+"/g;", "\"s/NAME\"/"+name+"/g;", outputDir+"create-rootfs.sh")
+	_, sed := SpawnProcess("sed", "-i", "'s/URL/"+selectedMirror+"/g;'", "'s/NAME/"+name+"/g;'", outputDir+"create-rootfs.sh")
 
 	// Start docker && // Create image && // Run container build process attach buildir as volume to container
 	_, start := SpawnProcess("systemctl", "start", "docker.service", "docker.socket")
