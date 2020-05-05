@@ -19,7 +19,7 @@ Options:
 On a Ubuntu host :
 
 ```sh
-sudo apt-get install git tar wget p7zip unzip parted xz-utils dosfstools lvm2 qemu qemu-user-static arch-install-scripts
+sudo apt-get install git dtrx wget p7zip lvm2 qemu dosfstools qemu-user-static arch-install-scripts multipath-tools
 ```
 
 ```sh

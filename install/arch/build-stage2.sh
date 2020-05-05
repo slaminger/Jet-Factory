@@ -2,7 +2,7 @@
 
 # Pre install configurations
 ## Workaround for flakiness of `pt` mirror.
-sed -i 's/mirror.archlinuxarm.org/de3.mirror.archlinuxarm.org/g' /etc/pacman.d/mirrorlist
+sed -i 's/mirror.archlinuxarm.org/eu.mirror.archlinuxarm.org/g' /etc/pacman.d/mirrorlist
 echo -e "[switch]\nSigLevel = Optional\nServer = https://9net.org/l4t-arch/" >> /etc/pacman.conf
 
 # Configuring pacman
@@ -18,9 +18,9 @@ echo -e "\n\nBeginning packages installation!\nRetry attempts left: ${i}"
 until pacman -Syu `cat /base-pkgs` --noconfirm; do
 	echo -e "\n\nPackages installation failed, retrying!\nRetry attempts left: ${i}"
 	let --i
+	[[ ${i} == 0 ]] && echo -e "\n\nBuilding failed!\nExiting..." && exit 1
 done
 
-[[ ${i} == 0 ]] && echo -e "\n\nBuilding failed!\nExiting..." && exit 1
 
 for pkg in `find /pkgs/*.pkg.* -type f`; do
 	pacman -U $pkg --noconfirm
@@ -38,4 +38,4 @@ usermod -aG video,audio,wheel alarm
 
 ldconfig
 
-echo "Exit proot."
+echo "Exit chroot."
