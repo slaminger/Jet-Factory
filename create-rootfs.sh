@@ -91,18 +91,22 @@ Main() {
 
 	if [[ $(file -b --mime-type "${dl_dir}/${img%.*}") == "application/octet-stream" ]]; then
 		echo "Copying files to build directory..."
-		kpartx -a "${dl_dir}/${img%.*}"
-		
-		offset=$(($(file -b "${dl_dir}/${img%.*}" | sed -E 's/^.*(ID=0x83.*startsector.*),.*$/\1/' | rev | cut -d" " -f1 | rev) * 512))
-		[[ offset != "" ]] &&
-		mount -o loop,offset=${offset} "${dl_dir}/${img%.*}" "${build_dir}/bootloader/"
+		losetup ${loop} "${dl_dir}/${img%.*}"
+		kpartx -a ${loop}
 
-		root_part=$(lvscan | cut -d"'" -f2)
-		mount ${root_part} "${build_dir}/bootloader/"
-		
+		mount_part="/dev/${selection}/root"
+	
+		# Use this for non LVM partition		
+		[[ ! $(file -b "${dl_dir}/${img%.*}" | grep "[[:digit:]] : ID=0x8e.*") ]] &&
+		mount_part="/dev/mapper/${loop##*/}p$(file -b "${dl_dir}/${img%.*}" | grep -o "partition 2.*" | grep -o "[[:digit:]] : ID=0x83.*" | cut -d' ' -f1)"
+
+		vgchange -ay ${selection} && sleep 2
+		mount ${mount_part} "${build_dir}/bootloader/"
 		cp -prd "${build_dir}/bootloader/" ${build_dir} 2>/dev/null
+		vgchange -an ${selection} && sleep 2
 		umount "${build_dir}/bootloader/"
-		kpartx -d "${dl_dir}/${img%.*}"
+		kpartx -d ${loop}
+		losetup -d ${loop}
 	else
 		tmp=${img%.*}
 		[[ ".tar." =~ ${img} ]] && tmp=${img%%.*}
@@ -137,7 +141,7 @@ Main() {
 	size=$(du -hs -BM ${build_dir} | head -n1 | awk '{print int($1/4)*4 + 4 + 512;}')M
 	dd if=/dev/zero of="${img}.${format}" bs=1 count=0 seek=${size} status=noxfer
 	
-	echo "Creating ${img}.${format} with ${format} format..."	
+	echo "Creating ${img}.${format} with ${format} format..."
 	yes | mkfs.${format} "${img}.${format}"
 	mount -o loop "${img}.${format}" "${build_dir}/switchroot/install/"
 	cp -prd ${build_dir}/* "${build_dir}/switchroot/install/" 2>/dev/null
@@ -153,7 +157,7 @@ Main() {
 		echo "Creating ${img}.fat32 with ${format} format..."
 		size=$(du -hs -BM "${build_dir}/bootloader" | head -n1 | awk '{print int($1/4)*4 + 4 + 512;}')M
 		dd if=/dev/zero of="${img}.fat32" bs=1 count=0 seek=${size} status=noxfer	
-		$loop && losetup ${loop} "${img}.fat32"
+		losetup ${loop} "${img}.fat32"
 		yes | mkfs.vfat -F 32 ${loop}
 		
 		mount -o loop "${img}.fat32" "${build_dir}/boot"
