@@ -35,6 +35,7 @@ hekate_bin=hekate_ctcaer_${hekate_version}.bin
 	elif [[ ${selection} == "fedora" ]]; then
 		img_sig_url=https://download.fedoraproject.org/pub/fedora/linux/releases/31/Server/aarch64/images/Fedora-Server-31-1.9-aarch64-CHECKSUM
 		validate_command="sha256sum --status -c "${img_sig}""
+		img_sig_url="Fedora-Server-31-1.9-aarch64-CHECKSUM"
 	else
 		echo "$0: invalid distro option: $1"
 		usage
