@@ -11,13 +11,14 @@ format=ext4
 loop=`losetup --find`
 
 # Folders
+parent="$(dirname "$(dirname "$(readlink -fm "$0")")")"
 cwd="$(dirname "$(readlink -f "$0")")"
 dl_dir="${cwd}/builds/dl"
 
 # Distro specific variables
 selection="$(echo ${@: -1} | tr '[:upper:]' '[:lower:]')"
 build_dir="${cwd}/builds/${selection}-build"
-img_url="$(head -1 "$(dirname "$(dirname "$(readlink -f "$0")")")"/install/${selection}/urls)"
+img_url="$(head -1 ${parent}/configs/${selection}/urls)"
 img="${img_url##*/}"
 
 # Hekate files
@@ -76,6 +77,7 @@ GetImgFiles() {
 }
 
 ExtractFiles() {
+	cd ${build_dir}
 	echo "Extracting downloaded archive file..."
 	[[ ! -f "${dl_dir}/${img%.*}" ]] && dtrx -f ${dl_dir}/${img}
 
@@ -116,17 +118,17 @@ ExtractFiles() {
 	fi
 
 	echo "Extracting Hekate..."
-	cd ${build_dir}
 	dtrx -f ${dl_dir}/${hekate_zip}
 	cd ${cwd}
 }
 
 PreChroot() {
 	[[ ${staging} == true ]] && echo "Copying staging files to rootfs..." &&
-	cp -r ""$(dirname "$(dirname "$(readlink -f "$0")")")"/install/${selection}/*/*/*.${pkg_types}" "${build_dir}/pkgs/" 2>/dev/null
+	cp -r ${parent}/configs/${selection}/*.${pkg_types} "${build_dir}/pkgs/" 2>/dev/null
 	
 	echo "Copying files to rootfs..."
-	cp "$(dirname "$(dirname "$(readlink -f "$0")")")"/install/${selection}/{build-stage2.sh,base-pkgs} ${build_dir}
+	cp /usr/bin/qemu-aarch64-static ${build_dir}/usr/bin/
+	cp ${parent}/configs/${selection}/{build-stage2.sh,base-pkgs} ${build_dir}
 	mv "${build_dir}/${hekate_bin}" "${build_dir}/lib/firmware/reboot_payload.bin"
 	
 	echo "Pre chroot setup..."
@@ -141,11 +143,7 @@ Chroot() {
 	
 	echo "Chrooting..."
 	# TODO : Golang : Build stage2 will be replaced by configs and packages installation
-	arch-chroot ${build_dir} qemu-aarch64-static /bin/bash build-stage2.sh || exit 1
-
-	echo "Copying switch boot files..."
-	mv ${build_dir}/bootloader/* ${build_dir}
-	rm -rf ${build_dir}/bootloader/*
+	arch-chroot ${build_dir} /bin/bash /build-stage2.sh || exit 1
 
 	echo "Post chroot cleaning..."
 	umount "${build_dir}/boot/" && umount ${build_dir}
@@ -158,7 +156,7 @@ PostChroot() {
 	dd if=/dev/zero of="${cwd}/${img%%.*}" bs=1 count=0 seek=${size} status=noxfer
 	
 	echo "Creating"${img%%.*}" with ${format} format..."
-	ext4mnt=$(losetup --partscan --find --show "${img%%.*}")
+	ext4mnt=$(losetup --partscan --find --show "${cwd}/${img%%.*}")
 	yes | mkfs.${format} ${ext4mnt}
 	
 	echo "Copying files to ${format} partition..."
@@ -166,6 +164,7 @@ PostChroot() {
 	cp -prd ${build_dir}/* "${build_dir}/switchroot/install/" 2>/dev/null
 	
 	echo "Removing unneeded folders from partiton..."
+	cp -prd ${build_dir}/switchroot/install/bootloader/* ${build_dir}/bootloader/
 	rm -rf ${build_dir}/switchroot/install/{switchroot/,bootloader/,*.reg}
 	umount ${ext4mnt} && losetup -d ${ext4mnt}
 
@@ -175,8 +174,11 @@ PostChroot() {
 		split -b4290772992 --numeric-suffixes=0 ${cwd}/"${img%%.*}" l4t.
 		
 		echo "Compressing hekate folder..."
-		[[ "${dl_dir}/${img%.*}" =~ '.tar' ]] && 7z a ${cwd}/"SWR-${img%%.*}.7z" ${build_dir}/{bootloader,switchroot}
-		7z a ${cwd}/"SWR-${img%.*}.7z" ${build_dir}/{bootloader,switchroot}
+		if [[ "${dl_dir}/${img%.*}" =~ '.tar' ]]; then 
+			7z a ${cwd}/"SWR-${img%%.*}.7z" ${build_dir}/{bootloader,switchroot}
+		else
+			7z a ${cwd}/"SWR-${img%.*}.7z" ${build_dir}/{bootloader,switchroot}
+		fi
 	else
 		echo "Creating ${img%%.*}.fat32 with ${format} format..."
 		size=$(du -hs -BM "${build_dir}/bootloader" | head -n1 | awk '{print int($1/4)*4 + 4 + 512;}')M
@@ -211,6 +213,7 @@ BuildEngine() {
 		GetImgFiles
 		
 		echo "Extracting image..."
+		cd ${build_dir}
 		ExtractFiles
 	fi
 
@@ -222,7 +225,7 @@ BuildEngine() {
 		docker image build -t l4t-builder:1.0 .
 
 		echo "Running container..."
-		docker run --privileged --cap-add=SYS_ADMIN --rm -it -v ${cwd}:/builder l4t-builder:1.0 /bin/bash /builder/create-rootfs.sh $(echo "$options" | sed -E 's/-(d|-docker)//g' | grep -o -E '\-+[[:alpha:]]+' | tr '\r\n' ' ') ${selection}
+		docker run --privileged --cap-add=SYS_ADMIN --rm -it -v ${parent}:/builder l4t-builder:1.0 /bin/bash /builder/helpers/create-rootfs.sh $(echo "$options" | sed -E 's/-(d|-docker)//g' | grep -o -E '\-+[[:alpha:]]+' | tr '\r\n' ' ') ${selection}
 		exit 0
 	fi
 

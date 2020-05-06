@@ -37,7 +37,7 @@ git clone https://github.com/Azkali/jet-factory
 ```
 
 ```sh
-sudo ./jet-factory/create-rootfs.sh
+sudo ./jet-factory/helpers/create-rootfs.sh
 ```
 
 ## Credits

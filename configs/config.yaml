@@ -1,0 +1,20 @@
+{  
+    "arch" : {
+        "variants": {},
+        "mirror_urls": {http://fl.us.mirror.archlinuxarm.org/os/ArchLinuxARM-aarch64-latest.tar.gz},
+        "configs": {install//build-stage2.sh},
+        "packages": {install/arch/base-pkgs},
+    },
+    "fedora" : {
+        "variants": {},
+        "mirror_urls": {https://download.fedoraproject.org/pub/fedora/linux/releases/31/Server/aarch64/images/Fedora-Server-31-1.9.aarch64.raw.xz},
+        "configs": {install//build-stage2.sh},
+        "packages": {install/fedora/base-pkgs},
+    },
+    "opensuse" : {
+        "variants": {},
+        "mirror_urls": {http://download.opensuse.org/ports/aarch64/distribution/leap/15.1/appliances/openSUSE-Leap-15.1-ARM-XFCE.aarch64-rootfs.aarch64.tar.xz},
+        "configs": {install//build-stage2.sh},
+        "packages": {install/opensuse/base-pkgs},
+    }
+}
