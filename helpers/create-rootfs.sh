@@ -164,8 +164,7 @@ PostChroot() {
 	cp -prd ${build_dir}/* "${build_dir}/switchroot/install/" 2>/dev/null
 	
 	echo "Removing unneeded folders from partiton..."
-	cp -prd ${build_dir}/switchroot/install/bootloader/* ${build_dir}/bootloader/
-	rm -rf ${build_dir}/switchroot/install/{switchroot/,bootloader/,*.reg}
+	rm -rf ${build_dir}/{switchroot/install/,bootloader/{switchroot/,bootloader/,*.reg}}
 	umount ${ext4mnt} && losetup -d ${ext4mnt}
 
 	if [[ ${hekate} == true ]]; then

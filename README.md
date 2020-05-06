@@ -42,7 +42,7 @@ sudo ./jet-factory/helpers/create-rootfs.sh
 
 ## Credits
 
-@GavinDarkglider, @CTCaer, @ByLaws, @ave
+@GavinDarkglider, @CTCaer, @ByLaws, @ave, @Stary2001
 For their amazing work, support and contribution to the scene
 
 @Kitsumi, @parkerlreed
