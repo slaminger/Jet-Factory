@@ -4,6 +4,7 @@
 ## Workaround for flakiness of `pt` mirror.
 sed -i 's/mirror.archlinuxarm.org/eu.mirror.archlinuxarm.org/g' /etc/pacman.d/mirrorlist
 echo -e "[switch]\nSigLevel = Optional\nServer = https://9net.org/l4t-arch/" >> /etc/pacman.conf
+sed 's/.*default-sample-rate.*/default-sample-rate = 48000/' -i /etc/pulse/daemon.conf
 
 # Configuring pacman
 pacman-key --init
