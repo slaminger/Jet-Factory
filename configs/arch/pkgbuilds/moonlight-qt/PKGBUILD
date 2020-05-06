@@ -21,7 +21,7 @@ prepare() {
 
 build() {
 	cd ${pkgbase}-${pkgver}/
-	make -j$(nproc) release
+	make release
 }
 
 package() {

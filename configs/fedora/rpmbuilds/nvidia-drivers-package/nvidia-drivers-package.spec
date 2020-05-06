@@ -224,7 +224,7 @@ Requires:   libXdmcp libxcb1 gstreamer1-plugins-bad-free gstreamer1-plugins-base
 	cp %{nv_dir}/etc/asound.conf.* %buildroot/etc/
 	
 	# Get the udev rules & xorg config.
-	cp -r %{nv_dir}/etc/udev/ %buildroot/etc/udev
+	cp -r %{nv_dir}/etc/udev/* %buildroot/etc/udev/
 	cp -r %{nv_dir}/etc/X11/xorg.conf %buildroot/etc/X11/
 
 	# Copy usr/lib/aarch64-linux-gnu -> usr/lib64/aarch64-linux-gnu.
@@ -236,7 +236,7 @@ Requires:   libXdmcp libxcb1 gstreamer1-plugins-bad-free gstreamer1-plugins-base
 
 	# Pass through these 2 in usr/lib64.
 	cp -r %{nv_dir}/usr/lib/xorg %buildroot/usr/lib64/
-	cp -r %{nv_dir}/usr/lib/nvidia %buildroot/usr/lib64/
+	cp -r %{nv_dir}/usr/lib/nvidia %buildroot/usr/lib/
 	
 	# These are OK as well...
 	cp -r %{nv_dir}/usr/share %buildroot/usr/share/
@@ -472,7 +472,7 @@ ldconfig
 /usr/share/doc/nvidia-tegra/LICENSE.gstvideocuda
 /usr/share/doc/nvidia-tegra/LICENSE.libgstnvvideosinks
 
-%file init
+%files init
 /etc/asound.conf.tegrahda
 /etc/asound.conf.tegrasndt210ref
 /etc/default/rng-tools
@@ -540,7 +540,7 @@ ldconfig
 /opt/nvidia/jetson-io/*
 /usr/share/doc/nvidia-l4t-jetson-io/*
 
-%file multimedia
+%files multimedia
 /usr/lib64/aarch64-linux-gnu/tegra/libnvmm_contentpipe.so
 /usr/lib64/aarch64-linux-gnu/tegra/libnvavp.so
 /usr/lib64/aarch64-linux-gnu/tegra/libnvbufsurface.so.1.0.0
@@ -578,12 +578,12 @@ ldconfig
 /usr/share/doc/nvidia-tegra/LICENSE.libnvv4l2.gz
 /usr/share/doc/nvidia-tegra/LICENSE.libnvv4lconvert.gz
 
-%file multimedia-utils
+%files multimedia-utils
 /usr/lib64/aarch64-linux-gnu/tegra/libnvbuf_fdmap.so.1.0.0
 /usr/lib64/aarch64-linux-gnu/tegra/libnvbuf_utils.so.1.0.0
 /usr/share/doc/nvidia-l4t-multimedia-utils/*
 
-%file oem-config
+%files oem-config
 /etc/nv-oem-config.conf.t210
 /etc/systemd/nv-oem-config-post.sh
 /etc/systemd/nv-oem-config.sh
@@ -601,7 +601,7 @@ usr/lib/ubiquity/plugins/nvresizefs.py
 usr/sbin/nv-oem-config-firstboot
 usr/share/doc/nvidia-l4t-oem-config/*
 
-%file tools
+%files tools
 /etc/nvpmodel/nvpmodel_t210.conf
 /etc/nvpmodel/nvpmodel_t210_jetson-nano.conf
 /etc/xdg/autostart/nvpmodel_indicator.desktop
@@ -615,18 +615,18 @@ usr/share/doc/nvidia-l4t-oem-config/*
 /usr/share/nvpmodel_indicator/nvpmodel_indicator.py
 /usr/share/nvpmodel_indicator/nv_logo.svg
 
-%file wayland
+%files wayland
 /usr/lib64/aarch64-linux-gnu/tegra/libnvidia-egl-wayland.so
 /usr/share/doc/nvidia-l4t-wayland/*
 /usr/share/egl/egl_external_platform.d/nvidia_wayland.json
 
-%file weston
+%files weston
 /etc/xdg/weston/weston.ini
 /usr/lib64/aarch64-linux-gnu/tegra/weston/*
 /usr/share/doc/nvidia-l4t-weston/*
 /usr/share/weston/*
 
-%file x11
+%files x11
 /etc/X11/xorg.conf
 /etc/X11/xorg.conf.jetson_e
 /usr/share/doc/nvidia-l4t-x11/changelog.Debian.gz
