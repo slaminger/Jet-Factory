@@ -17,7 +17,7 @@ dl_dir="${cwd}/builds/dl"
 # Distro specific variables
 selection="$(echo ${@: -1} | tr '[:upper:]' '[:lower:]')"
 build_dir="${cwd}/builds/${selection}-build"
-img_url="$(head -1 ${cwd}/install/${selection}/urls)"
+img_url="$(head -1 "$(dirname "$(dirname "$(readlink -f "$0")")")"/install/${selection}/urls)"
 img="${img_url##*/}"
 
 # Hekate files
@@ -123,10 +123,10 @@ ExtractFiles() {
 
 PreChroot() {
 	[[ ${staging} == true ]] && echo "Copying staging files to rootfs..." &&
-	cp -r "${cwd}/install/${selection}/*/*/*.${pkg_types}" "${build_dir}/pkgs/" 2>/dev/null
+	cp -r ""$(dirname "$(dirname "$(readlink -f "$0")")")"/install/${selection}/*/*/*.${pkg_types}" "${build_dir}/pkgs/" 2>/dev/null
 	
 	echo "Copying files to rootfs..."
-	cp ${cwd}/install/${selection}/{build-stage2.sh,base-pkgs} ${build_dir}
+	cp "$(dirname "$(dirname "$(readlink -f "$0")")")"/install/${selection}/{build-stage2.sh,base-pkgs} ${build_dir}
 	mv "${build_dir}/${hekate_bin}" "${build_dir}/lib/firmware/reboot_payload.bin"
 	
 	echo "Pre chroot setup..."
@@ -175,7 +175,8 @@ PostChroot() {
 		split -b4290772992 --numeric-suffixes=0 ${cwd}/"${img%%.*}" l4t.
 		
 		echo "Compressing hekate folder..."
-		7z a ${cwd}/"SWR-${img%%.*}.7z" ${build_dir}/{bootloader,switchroot}
+		[[ "${dl_dir}/${img%.*}" =~ '.tar' ]] && 7z a ${cwd}/"SWR-${img%%.*}.7z" ${build_dir}/{bootloader,switchroot}
+		7z a ${cwd}/"SWR-${img%.*}.7z" ${build_dir}/{bootloader,switchroot}
 	else
 		echo "Creating ${img%%.*}.fat32 with ${format} format..."
 		size=$(du -hs -BM "${build_dir}/bootloader" | head -n1 | awk '{print int($1/4)*4 + 4 + 512;}')M
@@ -197,7 +198,7 @@ PostChroot() {
 BuildEngine() {
 	if [ ! -f /.dockerenv ]; then
 		echo "Cleaning up old builds..."
-		rm -rf ${build_dir} ${cwd}/${img%%.*}{,.fat32,.7z}
+		rm -rf ${build_dir} ${cwd}/${img%%.*}{,.fat32}
 		[[ ${keep} != true ]] && echo "Keeping previously downloaded files..." && rm -rf ${dl_dir}
 
 		echo "Create required directories..."
