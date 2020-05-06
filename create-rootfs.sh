@@ -27,7 +27,17 @@ hekate_url=https://github.com/CTCaer/hekate/releases/download/v${hekate_version}
 hekate_zip=${hekate_url##*/}
 hekate_bin=hekate_ctcaer_${hekate_version}.bin
 
-# TODO : To be replaced by yaml using go
+Usage() {
+    echo "Usage: $0 [options] <distribution-name>"
+    echo "Options:"
+	echo " -d, --docker          	Build with Docker"
+	echo " --hekate                 Build for Hekate"
+	echo " -k, --keep          		Keep downloaded files"
+    echo " -s, --staging            Install built local packages"
+    echo " -h, --help               Show this help text"
+}
+
+# TODO : Replace by parsed YAML
 SetDistro() {
 	if [[ ${selection} == "arch" ]]; then
 		img_sig_url="${img_url}.md5"
@@ -39,19 +49,9 @@ SetDistro() {
 		validate_command="sha256sum --status -c "${dl_dir}/${img_sig}""
 	else
 		echo "$0: invalid distro option: $1"
-		usage
+		Usage
 		exit 1
 	fi
-}
-
-usage() {
-    echo "Usage: $0 [options] <distribution-name>"
-    echo "Options:"
-	echo " -d, --docker          	Build with Docker"
-	echo " --hekate                 Build for Hekate"
-	echo " -k, --keep          		Keep downloaded files"
-    echo " -s, --staging            Install built local packages"
-    echo " -h, --help               Show this help text"
 }
 
 GetImgFiles() {
@@ -90,25 +90,29 @@ ExtractFiles() {
 		loop=$(kpartx -l "${dl_dir}/${img%.*}" | grep -o -E 'loop[[:digit:]]' | head -1)
 		kpartx -a "${dl_dir}/${img%.*}"
 		
-		echo "Mounting partition..."
 		echo "Searching for LVM2 partition type..."
-		[[ $(file -b "${dl_dir}/${img%.*}" | grep "[[:digit:]] : ID=0x8e.*") ]] &&
-		
-			echo "Found LVM2 partition..."  && echo "Searching for rootfs partition..." &&
-			rootname=$(lvs | sed 's/root//' | tail -1 | grep -o -E '[[:alpha:]]{3}+') &&
-			mount /dev/mapper/${rootname}-root "${build_dir}/switchroot/install" ||
+		if [[ $(file -b "${dl_dir}/${img%.*}" | grep "[[:digit:]] : ID=0x8e.*") ]]; then
 
+			echo "Found LVM2 partition..."  && echo "Searching for rootfs partition..."
+			rootname=$(lvs | sed 's/root//' | tail -1 | grep -o -E '[[:alpha:]]{3}+')
+
+			echo "Detaching previous LVM2 partition..."
+			vgchange -an ${rootname} && vgchange -ay ${rootname}
+			mount /dev/mapper/${rootname}-root "${build_dir}/switchroot/install"
+		else
 			# TODO : Shouldn't try to mount 1st ext2,3,4 partition but biggest
-			echo "Didn't found LVM2 partition..." &&
-			num=$(file -b "${dl_dir}/${img%.*}" | grep -o "[[:digit:]] : ID=0x83.*" | cut -d' ' -f1) ||
+			echo "Found ext2,3,4 partition..."
+			num=$(file -b "${dl_dir}/${img%.*}" | grep -o "[[:digit:]] : ID=0x83.*" | cut -d' ' -f1)
 			mount /dev/${loop}p${num} "${build_dir}/switchroot/install"
+		fi
 
 		echo "Copying files to build directory..."
-		cp -prd ${build_dir}/switchroot/install/* ${build_dir} 2>/dev/null
+		cp -prd ${build_dir}/switchroot/install/* ${build_dir} &&
 		
 		echo "Unmounting partition..."
-		[[ ! -z ${rootname} ]] && vgchange -an
-		umount "${build_dir}/bootloader/" && kpartx -d "${dl_dir}/${img%.*}"
+		umount "${build_dir}/switchroot/install" 
+		[[ ! -z ${rootname} ]] && vgchange -an ${rootname}
+		kpartx -d "${dl_dir}/${img%.*}"
 	fi
 
 	echo "Extracting Hekate..."
@@ -162,7 +166,7 @@ PostChroot() {
 	cp -prd ${build_dir}/* "${build_dir}/switchroot/install/" 2>/dev/null
 	
 	echo "Removing unneeded folders from partiton..."
-	rm -rf ${build_dir}/switchroot/install/{switchroot/,bootloader/}
+	rm -rf ${build_dir}/switchroot/install/{switchroot/,bootloader/,*.reg}
 	umount ${ext4mnt} && losetup -d ${ext4mnt}
 
 	if [[ ${hekate} == true ]]; then
@@ -190,29 +194,43 @@ PostChroot() {
 	fi
 }
 
-Main() {
-	echo "Cleaning up old builds..."
-	rm -rf ${build_dir} ${cwd}/${img%%.*}{,.fat32,.7z}
-	[[ ${keep} != true ]] && echo "Keeping previously downloaded files..." && rm -rf ${dl_dir}
+BuildEngine() {
+	if [ ! -f /.dockerenv ]; then
+		echo "Cleaning up old builds..."
+		rm -rf ${build_dir} ${cwd}/${img%%.*}{,.fat32,.7z}
+		[[ ${keep} != true ]] && echo "Keeping previously downloaded files..." && rm -rf ${dl_dir}
 
-	echo "Create required directories..."
-	mkdir -p ${dl_dir} ${build_dir}/{bootloader,pkgs}
+		echo "Create required directories..."
+		mkdir -p ${dl_dir} ${build_dir}/{switchroot/install/,bootloader,pkgs}
 
-	echo "Setting distro parameters..."
-	SetDistro
+		echo "Setting distro parameters..."
+		SetDistro
 
-	echo "Downloading image..."
-	GetImgFiles
-	
-	echo "Extracting image..."
-	ExtractFiles
+		echo "Downloading image..."
+		GetImgFiles
+		
+		echo "Extracting image..."
+		ExtractFiles
+	fi
+
+	if [[ ${docker} == true ]]; then
+		echo "Starting Docker..."
+		systemctl start docker.{socket,service}
+
+		echo "Building Docker image..."
+		docker image build -t l4t-builder:1.0 .
+
+		echo "Running container..."
+		docker run --privileged --cap-add=SYS_ADMIN --rm -it -v ${cwd}:/builder l4t-builder:1.0 /bin/bash /builder/create-rootfs.sh $(echo "$options" | sed -E 's/-(d|-docker)//g' | grep -o -E '\-+[[:alpha:]]+' | tr '\r\n' ' ') ${selection}
+		exit 0
+	fi
 
 	echo "Pre Chroot setup..."
 	PreChroot
-	
+
 	echo "Chrooting..."
 	Chroot
-	
+
 	echo "Post Chroot setup..."
 	PostChroot
 
@@ -225,7 +243,7 @@ Main() {
 options=$(getopt -n $0 -o dhks --long docker,keep,staging,hekate,help -- "$@")
 
 # Check for errors in arguments or if no name was provided
-if [[ $? != "0" ]] || [[ options =~ "${@: -1}" ]]; then usage; exit 1; fi
+if [[ $? != "0" ]] || [[ options =~ "${@: -1}" ]]; then Usage; exit 1; fi
 [[ `whoami` != root ]] && echo "Run this as root!" && exit 1
 
 # Evaluate arguments
@@ -236,22 +254,9 @@ while true; do
 	--hekate) hekate=true; shift ;;
 	-k | --keep) keep=true; shift ;;
     -s | --staging) staging=true; shift ;;
-    ? | -h | --help) usage; exit 0 ;;
+    ? | -h | --help) Usage; exit 0 ;;
     -- ) shift; break ;;
     esac
 done
 
-if [[ ${docker} == true ]]; then
-	echo "Cleaning up old builds..."
-	rm -rf ${build_dir} ${cwd}/${img%%.*}{,.fat32,.7z}
-	[[ ${keep} != true ]] && echo "Keeping previously downloaded files..." && rm -rf ${dl_dir}
-	echo "Starting Docker..."
-	systemctl start docker.{socket,service}
-	echo "Building Docker image..."
-	docker image build -t l4t-builder:1.0 .
-	echo "Running container..."
-	docker run --privileged --cap-add=SYS_ADMIN --rm -it -v ${cwd}:/builder l4t-builder:1.0 /bin/bash /builder/create-rootfs.sh $(echo "$options" | sed -E 's/-(d|-docker)//g' | grep -o -E '\-+[[:alpha:]]+' | tr '\r\n' ' ') ${selection}
-	exit 0
-fi
-
-Main && exit 0
+BuildEngine && exit 0
