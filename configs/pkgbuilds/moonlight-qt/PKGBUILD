@@ -1,0 +1,30 @@
+pkgname=moonlight
+pkgbase=moonlight
+pkgver=R32
+pkgrel=3.1
+arch=('any')
+license=('GPL')
+url="https://github.com/moonlight-stream/moonlight-qt"
+makedepends=( 
+	'git' 'qt5-base' 'opus' 'libva'
+	'libvdpau' 'sdl2' 'sdl2_ttf'
+	'qt5-quickcontrols2' 'qt5-svg'
+	'tegra-ffmpeg' 'make' 'openssl-1.0'
+	'pkgconf')
+
+prepare() {
+	git clone https://github.com/moonlight-stream/moonlight-qt ${pkgbase}-${pkgver}
+	cd ${pkgbase}-${pkgver}/
+	git submodule update --init --recursive
+	qmake moonlight-qt.pro
+}
+
+build() {
+	cd ${pkgbase}-${pkgver}/
+	make release
+}
+
+package() {
+	cd ${srcdir}/${pkgbase}-${pkgver}/
+	make DESTDIR="${pkgdir}" install
+}

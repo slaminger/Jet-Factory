@@ -1,0 +1,25 @@
+pkgname=jetson-ffmpeg
+pkgbase=jetson-ffmpeg
+pkgver=R32
+pkgrel=3.1
+arch=('aarch64')
+license=('GPL')
+url="https://github.com/jocover/jetson-ffmpeg"
+makedepends=('git' 'cmake')
+depends=('tegra-bsp' 'v4l-utils')
+
+prepare() {
+	git clone https://github.com/jocover/jetson-ffmpeg.git "${pkgbase}-${pkgver}"
+	mkdir -p "${pkgbase}-${pkgver}"/build/
+}
+
+build() {
+	cd "${pkgbase}-${pkgver}"/build
+	cmake -DCMAKE_INSTALL_PREFIX=/usr ..
+	make
+}
+
+package() {
+	cd "${pkgbase}-${pkgver}"/build
+	make DESTDIR="${pkgdir}" install
+}
