@@ -222,7 +222,7 @@ func RunInChrootEnv(configs []string) error {
 
 // GeneratePackagesList : Installs packages list; Returns nil if successful
 func GeneratePackagesList(pkgs []string) *error {
-	// TODO : Assign to distribution package manager
+	// TODO : Assign to correct distribution package manager
 	var pkgManager string
 
 	if _, err := SpawnProcess(pkgManager, pkgs...); err != nil {
@@ -250,6 +250,7 @@ func Factory(distro, version, desktop string, configs, pkgs []string, basepath s
 	desktop = *GenDesktopEntry(desktop)
 	version = *GenerateVersionTag(version, desktop)
 	mirror := *QueryMirrorAvalaibility(version)
+	// pkgs = GenPackagesList(pkgs)
 	// configs = GenConfigs(configs)
 
 	if isVariant {
@@ -268,10 +269,8 @@ func Factory(distro, version, desktop string, configs, pkgs []string, basepath s
 
 		_, mkdir := SpawnProcess("mkdir", "-p", outputDir)
 		_, getroot := SpawnProcess("wget", "-nc -q --show-progress", mirror, "-P", outputDir)
-		_, img := SpawnProcess("docker", "image build -t", "l4tbuild:1.0", outputDir)
-		// pkgs = GenPackagesList(pkgs)
 
-		if !(mkdir == nil && img == nil && getroot == nil) {
+		if !(mkdir == nil && getroot == nil) {
 			return nil, err
 		}
 
