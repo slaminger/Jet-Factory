@@ -1,0 +1,28 @@
+pkgname=tegra-ffmpeg
+pkgbase=tegra-ffmpeg
+pkgver=R32
+pkgrel=3.1
+arch=('any')
+license=('GPL')
+url="https://ffmpeg.org/"
+makedepends=('git')
+depends=('jetson-ffmpeg' 'tegra-bsp' 'v4l-utils')
+provides=("ffmpeg")
+
+prepare() {
+	git clone git://source.ffmpeg.org/ffmpeg.git -b release/4.2 --depth=1
+	cd ffmpeg/
+	wget https://github.com/jocover/jetson-ffmpeg/raw/master/ffmpeg_nvmpi.patch
+	git apply ffmpeg_nvmpi.patch
+	./configure --enable-nvmpi --prefix=/usr
+}
+
+build() {
+	cd ffmpeg/
+	make -j$(nproc)
+}
+
+package() {
+	cd ${srcdir}/ffmpeg/
+	make DESTDIR="${pkgdir}" install
+}

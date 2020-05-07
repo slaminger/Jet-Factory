@@ -162,9 +162,10 @@ PostChroot() {
 	echo "Copying files to ${format} partition..."
 	mount ${ext4mnt} "${build_dir}/switchroot/install/"
 	cp -prd ${build_dir}/* "${build_dir}/switchroot/install/" 2>/dev/null
-	
+	cp -prd ${build_dir}/boot ${build_dir}/switchroot/install/ 2>/dev/null
+
 	echo "Removing unneeded folders from partiton..."
-	rm -rf ${build_dir}/{switchroot/install/,bootloader/{switchroot/,bootloader/,*.reg}}
+	rm -rf ${build_dir}/{switchroot/install/,bootloader/{switchroot/,bootloader/},*.reg}
 	umount ${ext4mnt} && losetup -d ${ext4mnt}
 
 	if [[ ${hekate} == true ]]; then
@@ -224,7 +225,7 @@ BuildEngine() {
 		docker image build -t l4t-builder:1.0 .
 
 		echo "Running container..."
-		docker run --privileged --cap-add=SYS_ADMIN --rm -it -v ${parent}:/builder l4t-builder:1.0 /bin/bash /builder/helpers/create-rootfs.sh $(echo "$options" | sed -E 's/-(d|-docker)//g' | grep -o -E '\-+[[:alpha:]]+' | tr '\r\n' ' ') ${selection}
+		docker run --privileged --cap-add=SYS_ADMIN --rm -it -v ${parent}:/root l4t-builder:1.0 /bin/bash /root/helpers/create-rootfs.sh $(echo "$options" | sed -E 's/-(d|-docker)//g' | grep -o -E '\-+[[:alpha:]]+' | tr '\r\n' ' ') ${selection}
 		exit 0
 	fi
 
