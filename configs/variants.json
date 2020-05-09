@@ -1,0 +1,26 @@
+{
+    "arch": {
+        "arch-bang": {
+            "mirror_urls": [],
+            "configs": []
+        },
+        "blackarch": {
+            "mirror_urls": [],
+            "configs": []
+        }
+    },
+    "lineage": {
+        "icosa": {
+            "mirror_urls": [],
+            "configs": []
+        },
+        "foster": {
+            "mirror_urls": [],
+            "configs": []
+        },
+        "foster_tab": {
+            "mirror_urls": [],
+            "configs": []
+        }
+    }
+}
