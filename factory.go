@@ -1,5 +1,10 @@
 package main
 
+// TODO-1 : Replace volume correctly
+// TODO-2 : HTTP Query version find until match and construct url
+// TODO-3 : Retrieve the returned shell variable
+// TODO-4 : Handle Staging packages installation
+
 import (
 	"context"
 	"encoding/json"
@@ -125,7 +130,7 @@ func IsDistro(name string) (err error) {
 
 // GenerateURLfromVersionTag : Retrieve a URL for a distribution based on a version
 func GenerateURLfromVersionTag(name string) *string {
-	// TODO : HTTP Query version find until match and construct url
+	// TODO-2
 	for _, avalaibleMirror := range baseDistros[name]["mirror_urls"] {
 		constructedURL := ""
 		if _, err := url.ParseRequestURI(avalaibleMirror); err != nil {
@@ -164,13 +169,13 @@ func InstallPackagesInChrootEnv(pkgs []string) error {
 		return err
 	}
 
-	// TODO : Retrieve the returned shell variable
+	// TODO-3
 	if err := SpawnContainer([]string{"arch-chroot", "/bin/bash", "findPackageManager.sh"}, nil); err != nil {
 		// pkgManager =
 		return err
 	}
 
-	// TODO : rule for staging packages
+	// TODO-4
 
 	if err := SpawnContainer([]string{"arch-chroot", pkgManager, strings.Join(pkgs, ",")}, nil); err != nil {
 		return err
@@ -216,7 +221,7 @@ func Factory(distro string, outDir string) error {
 	}
 
 	if !isAndroid {
-		// TODO : Retrieve the returned shell variable
+		// TODO-3
 		if _, err := SpawnProcess("/bin/bash", "prepare.sh", mirror, basePath); err != nil {
 			return err
 		}
@@ -229,11 +234,13 @@ func Factory(distro string, outDir string) error {
 			return err
 		}
 
+		// TODO-3
 		if err := SpawnContainer([]string{"/bin/bash", "createImage.sh", hekate, baseName, basePath}, nil); err != nil {
 			return err
 		}
 	} else {
 		dockerImageName = "pablozaiden/switchroot-android-build:v1"
+		// TODO-3
 		if err := SpawnContainer([]string{"ROM_NAME=" + distro, "--volume", basePath + ":/root/android"}, nil); err != nil {
 			return err
 		}
