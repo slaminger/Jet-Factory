@@ -5,16 +5,14 @@ AIO universal L4T distribution builder
 ## Scripts options
 
 ```
-Usage: create-rootfs.sh [options] <distribution-name>
+Usage: jet-factory [options] <distribution-name>
 Options:
-  -d, --docker             Build with Docker
-  --hekate                 Build for Hekate
-  -k, --keep               Keep downloaded files
-  -s, --staging            Install built local packages
-  -h, --help               Show this help text
+  hekate             Build an hekate installable filesystem
+  staging            Install built local packages
+  help               Show this help text
 ```
 
-### Dependencies
+## Dependencies
 
 **The following steps would consider your host as a Debian/Ubuntu based distribution, adapt if necessary**
 
@@ -24,26 +22,28 @@ Options:
 sudo apt-get install lvm2 multipath-tools
 ```
 
-*without using docker* :
-
-```sh
-sudo apt-get install git dtrx wget p7zip lvm2 qemu dosfstools qemu-user-static arch-install-scripts multipath-tools
-```
-
-### Build
+## Build
 
 ```sh
 git clone https://github.com/Azkali/jet-factory
 ```
 
 ```sh
-sudo ./jet-factory/helpers/create-rootfs.sh
+cd jet-factory
+```
+
+```sh
+go run factory.go
 ```
 
 ## Credits
 
-@GavinDarkglider, @CTCaer, @ByLaws, @ave, @Stary2001
-For their amazing work, support and contribution to the scene
+### Indirect contributors
 
-@Kitsumi, @parkerlreed
-For their contribution to this project
+@GavinDarkglider, @CTCaer, @ByLaws, @ave
+For their work and contributions.
+
+### Direct contributors
+
+@Stary2001, @Kitsumi, @parkerlreed, @AD2076, @PabloZaiden
+For their awesome work, support and contribution to this project

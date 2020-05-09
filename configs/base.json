@@ -1,0 +1,95 @@
+{
+    "arch": {
+        "variants": [
+            "blackarch",
+            "arch-bang"
+        ],
+        "mirror_urls": [
+            "http://fl.us.archlinuxarm.org/os/ArchLinuxARM-aarch64-latest.tar.gz"
+        ],
+        "configs": [],
+        "packages": [
+            "xorg-xrandr",
+            "xorg-xinput",
+            "xorg-xinit",
+            "onboard",
+            "wpa_supplicant",
+            "dialog",
+            "pulseaudio",
+            "pulseaudio-alsa",
+            "bluez",
+            "sudo",
+            "lxde",
+            "lightdm",
+            "lightdm-gtk-greeter",
+            "alsa-utils",
+            "joycond-git",
+            "netctl",
+            "dhcpcd",
+            "switch-boot-files-bin",
+            "systemd-suspend-modules",
+            "xorg-server-tegra",
+            "switch-config",
+            "tegra-bsp",
+            "linux-tegra",
+            "networkmanager"
+        ]
+    },
+    "fedora": {
+        "variants": [],
+        "mirror_urls": [
+            "https://download.fedoraproject.org/pub/fedora/linux/releases/"
+        ],
+        "configs": [],
+        "packages": [
+            "lightdm",
+            "onboard",
+            "langpacks-ja",
+            "upower",
+            "screen",
+            "wpa_supplicant",
+            "alsa-utils",
+            "alsa-ucm",
+            "alsa-plugins-pulseaudio",
+            "pulseaudio",
+            "pulseaudio-module-x11",
+            "pulseaudio-utils",
+            "xorg-x11-xinit",
+            "xorg-x11-drv-libinput",
+            "xorg-x11-drv-wacom",
+            "xorg-x11-drv-evdev",
+            "xorg-x11-drv-nouveau",
+            "xorg-x11-drv-qxl",
+            "xorg-x11-drv-fbdev",
+            "xorg-x11-drv-armsoc",
+            "xorg-x11-drv-ati",
+            "https://download1.rpmfusion.org/free/fedora/rpmfusion-free-release-$(rpm -E %fedora).noarch.rpm",
+            "https://download1.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-$(rpm -E %fedora).noarch.rpm"
+        ]
+    },
+    "opensuse": {
+        "variants": [
+            "leap",
+            "tumbleweed"
+        ],
+        "mirror_urls": [
+            "https://download.opensuse.org/ports/aarch64/distribution/leap/15.1/iso/openSUSE-Leap-15.1-NET-aarch64-Media.iso.meta4"
+        ],
+        "configs": [],
+        "packages": []
+    },
+    "ubuntu": {
+        "urls": [
+            "https://developer.nvidia.com/embedded/L4T/r32_Release_v4.2/t210ref_release_aarch64/Tegra_Linux_Sample-Root-Filesystem_R32.4.2_aarch64.tbz2"
+        ],
+        "configs": [],
+        "pkgs": []
+    },
+    "lineage": {
+        "variants": [
+            "icosa",
+            "foster",
+            "foster_tab"
+        ]
+    }
+}
