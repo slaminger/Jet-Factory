@@ -7,16 +7,14 @@ AIO universal L4T distribution builder
 ```
 Usage: jet-factory [options] <distribution-name>
 Options:
-  hekate             Build an hekate installable filesystem
-  staging            Install built local packages
-  help               Show this help text
+  -hekate             Build an hekate installable filesystem
+  -staging            Install built local packages
+  -help               Show this help text
 ```
 
 ## Dependencies
 
 **The following steps would consider your host as a Debian/Ubuntu based distribution, adapt if necessary**
-
-*using Docker* :
 
 ```sh
 sudo apt-get install lvm2 multipath-tools
@@ -40,10 +38,10 @@ go run factory.go
 
 ### Indirect contributors
 
-@GavinDarkglider, @CTCaer, @ByLaws, @ave
+@GavinDarkglider, @CTCaer, @ByLaws, @ave \
 For their work and contributions.
 
 ### Direct contributors
 
-@Stary2001, @Kitsumi, @parkerlreed, @AD2076, @PabloZaiden
+@Stary2001, @Kitsumi, @parkerlreed, @AD2076, @PabloZaiden \
 For their awesome work, support and contribution to this project
