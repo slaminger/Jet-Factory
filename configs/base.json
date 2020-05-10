@@ -1,12 +1,22 @@
 {
     "arch": {
-        "variants": [
-            "blackarch",
-            "arch-bang"
-        ],
-        "mirror_urls": [
-            "http://fl.us.archlinuxarm.org/os/ArchLinuxARM-aarch64-latest.tar.gz"
-        ],
+        "variants": {
+            "arch-bang": {
+                "configs": [],
+                "packages": []
+            },
+            "blackarch": {
+                "configs": [],
+                "packages": []
+            }
+        },
+        "buildarch": {
+            "aarch64": {
+                "mirror_urls": [
+                    "http://fl.us.archlinuxarm.org/os/ArchLinuxARM-aarch64-latest.tar.gz"
+                ]
+            }
+        },
         "configs": [],
         "packages": [
             "xorg-xrandr",
@@ -37,9 +47,13 @@
     },
     "fedora": {
         "variants": [],
-        "mirror_urls": [
-            "https://download.fedoraproject.org/pub/fedora/linux/releases/"
-        ],
+        "buildarch": {
+            "aarch64": {
+                "mirror_urls": [
+                    "https://download.fedoraproject.org/pub/fedora/linux/releases/"
+                ]
+            }
+        },
         "configs": [],
         "packages": [
             "lightdm",
@@ -67,29 +81,56 @@
             "https://download1.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-$(rpm -E %fedora).noarch.rpm"
         ]
     },
-    "opensuse": {
-        "variants": [
-            "leap",
-            "tumbleweed"
-        ],
-        "mirror_urls": [
-            "https://download.opensuse.org/ports/aarch64/distribution/leap/15.1/iso/openSUSE-Leap-15.1-NET-aarch64-Media.iso.meta4"
-        ],
+    "tumbleweed": {
+        "buildarch": {
+            "aarch64": {
+                "mirror_urls": []
+            }
+        },
+        "configs": []
+    },
+    "leap": {
+        "buildarch": {
+            "aarch64": {
+                "mirror_urls": []
+            }
+        },
+        "configs": []
+    },
+    "ubuntu": {
+        "buildarch": {
+            "aarch64": {
+                "mirror_urls": [
+                    "https://developer.nvidia.com/embedded/L4T/r32_Release_v4.2/t210ref_release_aarch64/Tegra_Linux_Sample-Root-Filesystem_R32.4.2_aarch64.tbz2"
+                ]
+            }
+        },
         "configs": [],
         "packages": []
     },
-    "ubuntu": {
-        "urls": [
-            "https://developer.nvidia.com/embedded/L4T/r32_Release_v4.2/t210ref_release_aarch64/Tegra_Linux_Sample-Root-Filesystem_R32.4.2_aarch64.tbz2"
-        ],
+    "slackware": {
+        "buildarch": {
+            "aarch64": {
+                "mirror_urls": []
+            }
+        },
         "configs": [],
-        "pkgs": []
+        "packages": []
     },
     "lineage": {
-        "variants": [
-            "icosa",
-            "foster",
-            "foster_tab"
-        ]
+        "variants": {
+            "icosa": {
+                "mirror_urls": [],
+                "configs": []
+            },
+            "foster": {
+                "mirror_urls": [],
+                "configs": []
+            },
+            "foster_tab": {
+                "mirror_urls": [],
+                "configs": []
+            }
+        }
     }
 }
