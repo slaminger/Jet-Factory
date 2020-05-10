@@ -1,8 +1,6 @@
 package main
 
-// TODO-1 : Replace volume correctly
-// TODO-2 : HTTP Query version find until match and construct url
-// TODO-3 : Retrieve the returned shell variable
+// TODO-3 (x2 - line181 line224) : Retrieve the returned shell variable
 // TODO-4 : Handle Staging packages installation
 
 import (
@@ -20,37 +18,41 @@ import (
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/api/types/network"
+	"github.com/docker/docker/api/types/mount"
 	"github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/stdcopy"
+	"github.com/manifoldco/promptui"
 )
 
 type (
 	// Base : Represent a distribution conatining a name, version, desktop environment and an optional list of packages
-	Base map[string]map[string][]string
+	Base struct {
+		Params map[string]map[string][]string
+		Urls   map[string]map[string][]string `json:"buildarch"`
+	}
+
 	// Variant : Represent a distribution variant
 	Variant struct {
 		Base
-		Extras map[string]map[string][]string
+		Extras map[string]map[string][]string `json:"variations"`
 	}
 )
 
 var (
-	// outputDir : ${distributionName}-${version}-aarch64-${date}
-	baseName, variantName        string
-	selectedMirror, dockerOutput string
-	hekate, staging              = "--hekate", "--staging"
-	isVariant, isAndroid         = false, false
-	dockerImageName              = "docker.io/library/ubuntu:18.04"
+	isVariant, isAndroid    = false, false
+	baseName, variantName   string
+	dockerOutput, buildarch string
+	hekate, staging         = "--hekate", "--staging"
+	dockerImageName         = "docker.io/library/ubuntu:18.04"
 
-	baseJSON, _    = ioutil.ReadFile("../configs/base.json")
-	variantJSON, _ = ioutil.ReadFile("../configs/variants.json")
+	baseJSON, _ = ioutil.ReadFile("../configs/base.json")
 
 	baseDistros    = Base{}
 	variantDistros = Variant{Base: baseDistros}
+	_              = json.Unmarshal([]byte(baseJSON), &baseDistros)
+	_              = json.Unmarshal([]byte(baseJSON), &variantDistros)
 
-	_ = json.Unmarshal([]byte(baseJSON), &baseDistros)
-	_ = json.Unmarshal([]byte(variantJSON), &variantDistros)
+	architectures = [...]string{"aarch64", "amd64", "i386", "arm"}
 )
 
 // SpawnProcess : Spawns a shell subprocess
@@ -69,7 +71,7 @@ func SpawnProcess(cmd string, args ...string) (p *os.Process, err error) {
 }
 
 // SpawnContainer : Spawns a container based on dockerImageName
-func SpawnContainer(cmd []string, volumes map[string]struct{}) error {
+func SpawnContainer(cmd []string, volume *[2]string) error {
 	ctx := context.Background()
 	cli, err := client.NewClient(client.DefaultDockerHost, client.DefaultVersion, nil, map[string]string{"Content-Type": "application/json"})
 	if err != nil {
@@ -83,10 +85,17 @@ func SpawnContainer(cmd []string, volumes map[string]struct{}) error {
 	io.Copy(os.Stdout, reader)
 
 	resp, err := cli.ContainerCreate(ctx, &container.Config{
-		Image:   dockerImageName,
-		Cmd:     cmd,
-		Volumes: volumes,
-	}, &container.HostConfig{}, &network.NetworkingConfig{}, baseName)
+		Image: dockerImageName,
+		Cmd:   cmd,
+	}, &container.HostConfig{
+		Mounts: []mount.Mount{
+			{
+				Type:   mount.TypeVolume,
+				Source: volume[0],
+				Target: volume[1],
+			},
+		},
+	}, nil, baseName)
 	if err != nil {
 		return err
 	}
@@ -112,12 +121,12 @@ func SpawnContainer(cmd []string, volumes map[string]struct{}) error {
 // IsDistro : Chechks if a distribution is avalaible in the config files
 func IsDistro(name string) (err error) {
 	// Check if name match a known distribution
-	for base := range baseDistros {
+	for base := range baseDistros.Params {
 		baseName = base
 		if name == base {
 			return nil
 		}
-		for _, variant := range baseDistros[base]["variants"] {
+		for _, variant := range baseDistros.Params[base]["variants"] {
 			if name == variant {
 				isVariant = true
 				variantName = variant
@@ -128,33 +137,76 @@ func IsDistro(name string) (err error) {
 	return err
 }
 
-// GenerateURLfromVersionTag : Retrieve a URL for a distribution based on a version
-func GenerateURLfromVersionTag(name string) *string {
-	// TODO-2
-	for _, avalaibleMirror := range baseDistros[name]["mirror_urls"] {
-		constructedURL := ""
-		if _, err := url.ParseRequestURI(avalaibleMirror); err != nil {
-			log.Println("Couldn't found mirror:", avalaibleMirror)
-		}
-		log.Println("Mirror URL selected : ", avalaibleMirror)
-		return &constructedURL
+// CliSelector : Select an item in a menu froim cli
+func CliSelector(label string, items []string) *string {
+	prompt := promptui.Select{
+		Label: label,
+		Items: items,
 	}
+
+	_, result, err := prompt.Run()
+
+	if err != nil {
+		fmt.Printf("Prompt failed %v\n", err)
+		return nil
+	}
+
+	return &result
+}
+
+// DownloadURLfromTags : Retrieve a URL for a distribution based on a version
+func DownloadURLfromTags(name string, path [2]string) *error {
+	var constructedURL string
+	var versions []string
+
+	for _, avalaibleMirror := range baseDistros.Urls[buildarch]["mirror_urls"] {
+		if !(name == "arch" || name == "slackware" || name == "tumbleweed") && !(name == "ubuntu" && buildarch == "aarch64") {
+			if name == "fedora" {
+				// versions := []string{}
+			} else if name == "leap" {
+				// versions := []string{}
+			}
+			if ok := CliSelector(name, versions); ok == nil {
+				return nil
+			}
+			log.Println("Mirror URL selected : ", constructedURL)
+		} else {
+			constructedURL := avalaibleMirror
+		}
+		if _, err := url.ParseRequestURI(constructedURL); err != nil {
+			log.Println("Couldn't found mirror:", constructedURL)
+		}
+	}
+
+	// TODO-3
+	if _, err := SpawnProcess("/bin/bash", "prepare.sh", constructedURL, path[0]); err != nil {
+		return &err
+	}
+
 	return nil
 }
 
 // ApplyConfigsInChrootEnv : Runs one or multiple command in a chroot environment; Returns nil if successful
-func ApplyConfigsInChrootEnv(configs []string) error {
-	if err := SpawnContainer([]string{"/bin/bash", "preChroot.sh"}, nil); err != nil {
+func ApplyConfigsInChrootEnv(path [2]string) error {
+	if err := SpawnContainer([]string{"/bin/bash", "preChroot.sh"}, &path); err != nil {
 		return err
 	}
 
-	for _, config := range configs {
-		if err := SpawnContainer([]string{"arch-chroot", config}, nil); err != nil {
+	if isVariant {
+		for _, config := range baseDistros.Params[baseName]["configs"] {
+			if err := SpawnContainer([]string{"arch-chroot", config}, &path); err != nil {
+				return err
+			}
+		}
+	}
+
+	for _, config := range variantDistros.Extras[variantName]["configs"] {
+		if err := SpawnContainer([]string{"arch-chroot", config}, &path); err != nil {
 			return err
 		}
 	}
 
-	if err := SpawnContainer([]string{"/bin/bash", "postChroot.sh"}, nil); err != nil {
+	if err := SpawnContainer([]string{"/bin/bash", "postChroot.sh"}, &path); err != nil {
 		return err
 	}
 
@@ -162,26 +214,31 @@ func ApplyConfigsInChrootEnv(configs []string) error {
 }
 
 // InstallPackagesInChrootEnv : Installs packages list; Returns nil if successful
-func InstallPackagesInChrootEnv(pkgs []string) error {
+func InstallPackagesInChrootEnv(path [2]string) error {
 	var pkgManager string
 
-	if err := SpawnContainer([]string{"/bin/bash", "preChroot.sh"}, nil); err != nil {
+	if err := SpawnContainer([]string{"/bin/bash", "preChroot.sh"}, &path); err != nil {
 		return err
 	}
 
 	// TODO-3
-	if err := SpawnContainer([]string{"arch-chroot", "/bin/bash", "findPackageManager.sh"}, nil); err != nil {
+	if err := SpawnContainer([]string{"arch-chroot", "/bin/bash", "findPackageManager.sh"}, &path); err != nil {
 		// pkgManager =
 		return err
 	}
 
 	// TODO-4
+	if isVariant {
+		if err := SpawnContainer([]string{"arch-chroot", pkgManager, strings.Join(variantDistros.Extras[variantName]["packages"], ",")}, &path); err != nil {
+			return err
+		}
+	}
 
-	if err := SpawnContainer([]string{"arch-chroot", pkgManager, strings.Join(pkgs, ",")}, nil); err != nil {
+	if err := SpawnContainer([]string{"arch-chroot", pkgManager, strings.Join(baseDistros.Params[baseName]["packages"], ",")}, &path); err != nil {
 		return err
 	}
 
-	if err := SpawnContainer([]string{"/bin/bash", "postChroot.sh"}, nil); err != nil {
+	if err := SpawnContainer([]string{"/bin/bash", "postChroot.sh"}, &path); err != nil {
 		return err
 	}
 
@@ -190,69 +247,54 @@ func InstallPackagesInChrootEnv(pkgs []string) error {
 
 // Factory : Build your distribution with the setted options; Returns a pointer on the location of the produced build
 func Factory(distro string, outDir string) error {
-	var pkgs, configs []string
-
-	basePath := outDir
 	if !(len(outDir) > 0) {
-		basePath = "."
+		outDir = "."
 	}
 
 	if err := IsDistro(distro); err != nil {
-		log.Println("No distribution found for: ", err)
+		flag.Usage()
 		return err
 	}
 
-	if isVariant {
-		image := variantDistros.Extras[distro]
-		pkgs = image["packages"]
-		configs = image["configs"]
-	} else {
-		image := baseDistros[distro]
-		pkgs = image["packages"]
-		configs = image["configs"]
-	}
+	basePath := outDir + "/" + distro
+	path := [2]string{basePath, "/root/" + distro}
 
-	mirror := *GenerateURLfromVersionTag(distro)
-
-	basePath = basePath + "/" + baseName
 	log.Println("Building: ", distro, "in dir: ", basePath)
 	if err := os.MkdirAll(basePath, 755); err != nil {
 		return err
 	}
 
 	if !isAndroid {
-		// TODO-3
-		if _, err := SpawnProcess("/bin/bash", "prepare.sh", mirror, basePath); err != nil {
+		if err := *DownloadURLfromTags(distro, path); err != nil {
 			return err
 		}
 
-		if err := InstallPackagesInChrootEnv(pkgs); err != nil {
+		if err := InstallPackagesInChrootEnv(path); err != nil {
 			return err
 		}
 
-		if err := ApplyConfigsInChrootEnv(configs); err != nil {
+		if err := ApplyConfigsInChrootEnv(path); err != nil {
 			return err
 		}
 
-		// TODO-3
-		if err := SpawnContainer([]string{"/bin/bash", "createImage.sh", hekate, baseName, basePath}, nil); err != nil {
+		if err := SpawnContainer([]string{"/bin/bash", "createImage.sh", hekate, baseName, "."}, &path); err != nil {
 			return err
 		}
 	} else {
-		dockerImageName = "pablozaiden/switchroot-android-build:v1"
-		// TODO-3
-		if err := SpawnContainer([]string{"ROM_NAME=" + distro, "--volume", basePath + ":/root/android"}, nil); err != nil {
+		dockerImageName = "pablozaiden/switchroot-android-build:1.0.0"
+		if err := SpawnContainer([]string{"-e ROM_NAME=" + distro}, &path); err != nil {
 			return err
 		}
 	}
+	log.Println("Done!")
 	return nil
 }
 
 func main() {
 	var distro, basepath string
-
-	flag.StringVar(&distro, "distro", "arch", "the distro you want to build: ubuntu, fedora, gentoo, arch(blackarch, arch-bang), lineage(icosa, foster, foster_tab)")
+	flag.StringVar(&distro, "distro", "", "the distro you want to build: ubuntu, fedora, gentoo, arch(blackarch, arch-bang), lineage(icosa, foster, foster_tab)")
 	flag.StringVar(&basepath, "basepath", ".", "Path to use as Docker storage, can be a mounted external device")
+	flag.StringVar(&buildarch, "arch", "aarch64", "Set the platform build architecture.")
 	if ok := flag.Bool("hekate", false, "Build an hekate installable filesystem"); !*ok {
 		hekate = ""
 	}
@@ -267,5 +309,19 @@ func main() {
 		isAndroid = true
 	}
 
-	Factory(distro, basepath)
+	if distro == "opensuse" {
+		distro = "leap"
+	}
+
+	for _, arch := range architectures {
+		if buildarch == arch {
+			buildarch = arch
+		}
+	}
+
+	if distro == "" {
+		flag.Usage()
+	} else {
+		Factory(distro, basepath)
+	}
 }

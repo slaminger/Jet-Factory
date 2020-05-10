@@ -1,6 +1,9 @@
 #!/bin/bash
 build_dir=$1
 img=$2
+
+mkdir -p ${build_dir}
+
 size=$(du -hs -BM ${build_dir} | head -n1 | awk '{print int($1/4)*4 + 4 + 512;}')M
 
 echo "Creating final ${format} partition... Estimated size : ${size}"

@@ -5,9 +5,12 @@ AIO universal L4T distribution builder
 ## Scripts options
 
 ```
-Usage: jet-factory [options] <distribution-name>
+Usage: jet-factory [options]
 Options:
+  -arch               Platform build architecture; default aarch64
+  -distro             Distribution to build; ubuntu, fedora, opensuse(leap, tumbleweed), slackware, arch(blackarch, arch-bang), lineage(icosa, foster, foster_tab)
   -hekate             Build an hekate installable filesystem
+  -path               Output path; defaults to current directory
   -staging            Install built local packages
   -help               Show this help text
 ```
