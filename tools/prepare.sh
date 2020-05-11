@@ -19,60 +19,57 @@ wget -nc -q --show-progress ${hekate_url}
 
 # Download file if it doesn't exist, or is forced to download.
 echo "Downloading image file..."
-wget -nc -q --show-progress ${img_url}
+wget -nc --show-progress ${img_url}
 
+cd ${build_dir}
 
-if [ -f ${img%.*} ]; then
-	if [ ! -f ${img%%.*} ]; then
-		cd ${build_dir}
-		case ${img} in
-			*.tar)       tar xvf ${img}     ;;
-			*.tar.*)     tar xvjf ${img}    ;;
-			*.tbz2)      tar xvjf ${img}    ;;
-			*.tgz)       tar xvzf ${img}    ;;
-			*.lzma)      unlzma ${img}      ;;
-			*.bz2)       bunzip2 ${img}     ;;
-			*.rar)       unrar x -ad ${img} ;;
-			*.gz)        gunzip ${img}      ;;
-			*.zip)       unzip ${img}       ;;
-			*.Z)         uncompress ${img}  ;;
-			*.7z)        7z x ${img}        ;;
-			*.xz)        unxz ${img}        ;;
-		esac
-	elif [ $(file -b --mime-type ${img%%.*}) == "application/octet-stream" ]; then
-		echo "Searching for image file..."
-			
-		echo "Preparing image file..."
-		loop=$(kpartx -l ${img%%.*} | grep -o -E 'loop[[:digit:]]' | head -1)
-		kpartx -a ${img%%.*}
+case ${img} in
+	*.tar)       tar xvf ${img}     ;;
+	*.tar.*)     tar xvjf ${img}    ;;
+	*.tbz2)      tar xvjf ${img}    ;;
+	*.tgz)       tar xvzf ${img}    ;;
+	*.lzma)      unlzma ${img}      ;;
+	*.bz2)       bunzip2 ${img}     ;;
+	*.rar)       unrar x -ad ${img} ;;
+	*.gz)        gunzip ${img}      ;;
+	*.zip)       unzip ${img}       ;;
+	*.Z)         uncompress ${img}  ;;
+	*.7z)        7z x ${img}        ;;
+	*.xz)        unxz ${img}        ;;
+esac
+
+echo "${img##*/} extracted successuly !" 
+
+if [ $(file -b --mime-type ${img%%.*}) == "application/octet-stream" ]; then
+	echo "Searching for image file..."
 		
-		echo "Searching for LVM2 partition type..."
-		if [ $(file -b ${img%%.*} | grep "[[:digit:]] : ID=0x8e.*") ]; then
+	echo "Preparing image file..."
+	loop=$(kpartx -l ${img%%.*} | grep -o -E 'loop[[:digit:]]' | head -1)
+	kpartx -a ${img%%.*}
+	
+	echo "Searching for LVM2 partition type..."
+	if [ $(file -b ${img%%.*} | grep "[[:digit:]] : ID=0x8e.*") ]; then
 
-			echo "Found LVM2 partition..."  && echo "Searching for rootfs partition..."
-			rootname=$(lvs | sed 's/root//' | tail -1 | grep -o -E '[[:alpha:]]{3}+')
+		echo "Found LVM2 partition..."  && echo "Searching for rootfs partition..."
+		rootname=$(lvs | sed 's/root//' | tail -1 | grep -o -E '[[:alpha:]]{3}+')
 
-			echo "Detaching previous LVM2 partition..."
-			vgchange -an ${rootname} && vgchange -ay ${rootname}
-			mount /dev/mapper/${rootname}-root "${build_dir}/switchroot/install"
-		else
-			# TODO : Shouldn't try to mount 1st ext2,3,4 partition but biggest
-			echo "Found ext2,3,4 partition..."
-			num=$(file -b ${img%%.*} | grep -o "[[:digit:]] : ID=0x83.*" | cut -d' ' -f1)
-			mount /dev/${loop}p${num} "${build_dir}/switchroot/install"
-		fi
-
-		echo "Copying files to build directory..."
-		cp -prd ${build_dir}/switchroot/install/* ${build_dir} &&
-		
-		echo "Unmounting partition..."
-		umount "${build_dir}/switchroot/install" 
-		[[ ! -z ${rootname} ]] && vgchange -an ${rootname}
-		kpartx -d ${img%%.*}
+		echo "Detaching previous LVM2 partition..."
+		vgchange -an ${rootname} && vgchange -ay ${rootname}
+		mount /dev/mapper/${rootname}-root "${build_dir}/switchroot/install"
+	else
+		# TODO : Shouldn't try to mount 1st ext2,3,4 partition but biggest
+		echo "Found ext2,3,4 partition..."
+		num=$(file -b ${img%%.*} | grep -o "[[:digit:]] : ID=0x83.*" | cut -d' ' -f1)
+		mount /dev/${loop}p${num} "${build_dir}/switchroot/install"
 	fi
-else
-	echo "${img} - file does not exist"
-	exit 1
+
+	echo "Copying files to build directory..."
+	cp -prd ${build_dir}/switchroot/install/* ${build_dir} &&
+	
+	echo "Unmounting partition..."
+	umount "${build_dir}/switchroot/install" 
+	[[ ! -z ${rootname} ]] && vgchange -an ${rootname}
+	kpartx -d ${img%%.*}
 fi
 
 echo "Finishing rootfs preparation..."

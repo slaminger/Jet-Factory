@@ -1,15 +1,15 @@
 package main
 
-// TODO-4 : Handle Staging packages installation
+// TODO : Handle Staging packages installation
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -17,13 +17,13 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/AlecAivazis/survey/v2"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/mount"
 	"github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/stdcopy"
 	strip "github.com/grokify/html-strip-tags-go"
-	"github.com/manifoldco/promptui"
 )
 
 type (
@@ -128,31 +128,24 @@ func IsDistro(name string) (err error) {
 // IsValidArchitecture : Check if the inputed architecture can be found for the distribution
 func IsValidArchitecture() (archi *string) {
 	for archis := range distribution.Architectures {
-		log.Println(archis)
 		if buildarch == archis {
-			log.Println("Found valid architecture: ", buildarch)
+			fmt.Println("Found valid architecture: ", buildarch)
 			return &buildarch
 		}
 	}
-	log.Println(buildarch, "is not a valid architecture !")
+	fmt.Println(buildarch, "is not a valid architecture !")
 	return nil
 }
 
 // CliSelector : Select an item in a menu froim cli
-func CliSelector(label string, items []string) *string {
-	prompt := promptui.Select{
-		Label: label,
-		Items: items,
+func CliSelector(label string, items []string) string {
+	var inputValue string
+	prompt := &survey.Select{
+		Message: label,
+		Options: items,
 	}
-
-	_, result, err := prompt.Run()
-
-	if err != nil {
-		fmt.Printf("Prompt failed %v\n", err)
-		return nil
-	}
-
-	return &result
+	survey.AskOne(prompt, &inputValue)
+	return inputValue
 }
 
 // WalkURL :
@@ -171,55 +164,65 @@ func WalkURL(source, regex string) []string {
 		return nil
 	}
 
-	log.Println(strip.StripTags(string(bodyBytes)))
+	sanitizedHTML := strip.StripTags(string(bodyBytes))
 	search, _ := regexp.Compile(regex)
-	found := search.FindStringSubmatch(strip.StripTags(string(bodyBytes)))
-
-	return found
+	query := search.FindAllString(sanitizedHTML, -1)
+	return query
 }
 
 // DownloadURLfromTags : Retrieve a URL for a distribution based on a version
 func DownloadURLfromTags(path [2]string) (err error) {
 	var constructedURL string
 	for _, avalaibleMirror := range distribution.Architectures[buildarch] {
+
 		if strings.Contains(avalaibleMirror, "{VERSION}") || strings.Contains(avalaibleMirror, "{BUILDARCH}") {
 
-			avalaibleMirror = strings.Replace(avalaibleMirror, "{BUILDARCH}", buildarch, 1)
-
-			constructedURL = strings.Split(avalaibleMirror, "/{VERSION}")[0]
-			regexURL := WalkURL(constructedURL, "[[:digit:]](.*?)/")
-
+			temporaryURL := strings.Replace(avalaibleMirror, "{BUILDARCH}", buildarch, 1)
+			constructedURL = strings.Split(temporaryURL, "/{VERSION}")[0]
+			regexURL := WalkURL(constructedURL, "(?m)^([[:digit:]]{1,3}.[[:digit:]]+|[[:digit:]]+)(?:/)")
 			version := CliSelector("Select a version: ", regexURL)
-			if version == nil {
+
+			if version == "" {
 				return err
 			}
 
-			avalaibleMirror = strings.Replace(avalaibleMirror, "{VERSION}", *version, 1)
-
-			regexURL = WalkURL(avalaibleMirror, "[[:digit:]](.*?)/")
+			constructedURL = strings.Replace(temporaryURL, "{VERSION}/", version, 1)
+			regexURL = WalkURL(constructedURL, ".*.raw.xz")
 			imageFile := CliSelector("Select an image file: ", regexURL)
 
-			if imageFile == nil {
+			if imageFile == "" {
 				return err
 			}
 
+			constructedURL = constructedURL + imageFile
 		} else {
 			constructedURL = avalaibleMirror
 		}
 
 		if _, err := url.ParseRequestURI(constructedURL); err != nil {
-			log.Println("Couldn't found mirror:", constructedURL)
+			fmt.Println("Couldn't found mirror:", constructedURL)
 			return err
 		}
 	}
-	log.Println("Mirror URL selected : ", constructedURL)
+	fmt.Println("Mirror URL selected : ", constructedURL)
 
-	err = exec.Command("/bin/bash", "prepare.sh", constructedURL, path[0]).Run()
+	cmd := exec.Command("/bin/bash", "./tools/prepare.sh", constructedURL, path[0])
+	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return err
 	}
+	cmd.Start()
 
-	return nil
+	buf := bufio.NewReader(stdout) // Notice that this is not in a loop
+	num := 1
+	for {
+		line, _, _ := buf.ReadLine()
+		if num > 3 {
+			os.Exit(0)
+		}
+		num++
+		fmt.Println(string(line))
+	}
 }
 
 // ApplyConfigsInChrootEnv : Runs one or multiple command in a chroot environment; Returns nil if successful
@@ -276,24 +279,22 @@ func InstallPackagesInChrootEnv(path [2]string) error {
 }
 
 // Factory : Build your distribution with the setted options; Returns a pointer on the location of the produced build
-func Factory(distro string, outDir string) error {
-	err := IsDistro(distro)
-	if err != nil {
+func Factory(distro string, outDir string) (err error) {
+	if err := IsDistro(distro); err != nil {
 		flag.Usage()
 		return err
 	}
 
 	basePath := outDir + "/" + distro
-	path := [2]string{basePath, "/root/" + distro}
 
-	log.Println("Building: ", distro, "in dir: ", basePath)
+	fmt.Println("Building:", distro, "\nInside directory:", basePath)
 	if err := os.MkdirAll(basePath, os.ModePerm); err != nil {
 		return err
 	}
 
 	if !isAndroid {
-		archi := IsValidArchitecture()
-		if archi == nil {
+		path := [2]string{basePath, "/root/" + distro}
+		if archi := IsValidArchitecture(); archi == nil {
 			return err
 		}
 
@@ -313,12 +314,13 @@ func Factory(distro string, outDir string) error {
 			return err
 		}
 	} else {
+		path := [2]string{basePath, "/root/android/"}
 		dockerImageName = "pablozaiden/switchroot-android-build:1.0.0"
 		if err := SpawnContainer([]string{"-e ROM_NAME=" + distro}, &path); err != nil {
 			return err
 		}
 	}
-	log.Println("Done!")
+	fmt.Println("Done!")
 	return nil
 }
 
