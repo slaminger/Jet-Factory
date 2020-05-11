@@ -9,6 +9,8 @@ require (
 	github.com/docker/go-connections v0.4.0 // indirect
 	github.com/docker/go-units v0.4.0 // indirect
 	github.com/gorilla/mux v1.7.4
+	github.com/grokify/html-strip-tags-go v0.0.0-20200322061010-ea0c1cf2f119
+	github.com/hashicorp/go-getter v1.4.1
 	github.com/manifoldco/promptui v0.7.0
 	github.com/opencontainers/go-digest v1.0.0-rc1 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
