@@ -314,7 +314,7 @@ func Factory(distro string, outDir string) (err error) {
 			return err
 		}
 	} else {
-		path := [2]string{basePath, "/root/android/"}
+		path := [2]string{basePath, "/root/android"}
 		dockerImageName = "pablozaiden/switchroot-android-build:1.0.0"
 		if err := SpawnContainer([]string{"-e ROM_NAME=" + distro}, &path); err != nil {
 			return err
