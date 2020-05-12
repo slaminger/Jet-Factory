@@ -49,7 +49,7 @@ var (
 	baseName, buildarch string
 
 	isVariant, isAndroid = false, false
-	hekate, staging      = "--hekate", "--staging"
+	hekate, staging      = "hekate", "staging"
 	dockerImageName      = "docker.io/library/ubuntu:18.04"
 
 	baseJSON, _ = ioutil.ReadFile("./setup/base.json")
@@ -64,6 +64,8 @@ func SpawnContainer(cmd, env []string, volume *[2]string) error {
 	if err != nil {
 		return err
 	}
+
+	// cli.ImageBuild(ctx)
 
 	reader, err := cli.ImagePull(ctx, dockerImageName, types.ImagePullOptions{})
 	if err != nil {
@@ -220,7 +222,7 @@ func DownloadURLfromTags(path [2]string) (err error) {
 
 // ApplyConfigsInChrootEnv : Runs one or multiple command in a chroot environment; Returns nil if successful
 func ApplyConfigsInChrootEnv(path [2]string) error {
-	if err := SpawnContainer([]string{"/bin/bash", "preChroot.sh"}, nil, &path); err != nil {
+	if err := SpawnContainer([]string{"/bin/bash", "/tools/preChroot.sh"}, nil, &path); err != nil {
 		return err
 	}
 
@@ -238,7 +240,7 @@ func ApplyConfigsInChrootEnv(path [2]string) error {
 		}
 	}
 
-	if err := SpawnContainer([]string{"/bin/bash", "postChroot.sh"}, nil, &path); err != nil {
+	if err := SpawnContainer([]string{"/bin/bash", "/tools/postChroot.sh"}, nil, &path); err != nil {
 		return err
 	}
 
@@ -247,24 +249,22 @@ func ApplyConfigsInChrootEnv(path [2]string) error {
 
 // InstallPackagesInChrootEnv : Installs packages list; Returns nil if successful
 func InstallPackagesInChrootEnv(path [2]string) error {
-	var pkgManager string
-
-	if err := SpawnContainer([]string{"/bin/bash", "preChroot.sh"}, nil, &path); err != nil {
+	if err := SpawnContainer([]string{"/bin/bash", "/tools/preChroot.sh"}, nil, &path); err != nil {
 		return err
 	}
 
 	// TODO-4
 	if isVariant {
-		if err := SpawnContainer([]string{"arch-chroot", "`/bin/bash findPackageManager.sh`", strings.Join(variant.Packages, ","), path[1]}, nil, &path); err != nil {
+		if err := SpawnContainer([]string{"arch-chroot", "`/bin/bash /tools/findPackageManager.sh`", strings.Join(variant.Packages, ","), path[1]}, nil, &path); err != nil {
 			return err
 		}
 	}
 
-	if err := SpawnContainer([]string{"arch-chroot", pkgManager, strings.Join(distribution.Packages, ","), path[1]}, nil, &path); err != nil {
+	if err := SpawnContainer([]string{"arch-chroot", "`/bin/bash /tools/findPackageManager.sh`", strings.Join(distribution.Packages, ","), path[1]}, nil, &path); err != nil {
 		return err
 	}
 
-	if err := SpawnContainer([]string{"/bin/bash", "postChroot.sh"}, nil, &path); err != nil {
+	if err := SpawnContainer([]string{"/bin/bash", "/tools/postChroot.sh"}, nil, &path); err != nil {
 		return err
 	}
 
@@ -303,7 +303,7 @@ func Factory(distro string, outDir string) (err error) {
 			return err
 		}
 
-		if err := SpawnContainer([]string{"/bin/bash", "createImage.sh", "hekate", baseName}, nil, &path); err != nil {
+		if err := SpawnContainer([]string{"/bin/bash", "/tools/createImage.sh", hekate, baseName}, nil, &path); err != nil {
 			return err
 		}
 	} else {
