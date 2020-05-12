@@ -1,11 +1,8 @@
 #!/bin/bash
-build_dir=$1
-img=$2
-
-mkdir -p ${build_dir}
+build_dir="$(readlink -fm $2)"
+img=$3
 
 size=$(du -hs -BM ${build_dir} | head -n1 | awk '{print int($1/4)*4 + 4 + 512;}')M
-
 echo "Creating final ${format} partition... Estimated size : ${size}"
 dd if=/dev/zero of=${img} bs=1 count=0 seek=${size} status=noxfer
 
@@ -22,7 +19,7 @@ echo "Removing unneeded folders from partiton..."
 rm -rf ${build_dir}/{switchroot/install/,bootloader/{switchroot/,bootloader/},*.reg}
 umount ${ext4mnt} && losetup -d ${ext4mnt}
 
-if [[ ${hekate} == true ]]; then
+if [[ $1 == "hekate" ]]; then
 	echo "Creating Hekate installable files..."
 	cd "${build_dir}/switchroot/install/"
 	split -b4290772992 --numeric-suffixes=0 ${img} l4t.
