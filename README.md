@@ -20,7 +20,7 @@ Options:
 **The following steps would consider your host as a Debian/Ubuntu based distribution, adapt if necessary**
 
 ```sh
-sudo apt-get install lvm2 multipath-tools
+sudo apt-get install libguestfs-tools
 ```
 
 ## Build

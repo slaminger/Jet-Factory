@@ -210,7 +210,7 @@ func DownloadURLfromTags(path [2]string) (err error) {
 	}
 	fmt.Println("Mirror URL selected : ", constructedURL)
 
-	cmd := exec.Command("/bin/bash", "./tools/prepare.sh", constructedURL, path[0])
+	cmd := exec.Command("/bin/bash", "./tools/engine.sh", "files", constructedURL, path[0])
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		fmt.Println(fmt.Sprint(err) + ": " + string(output))
