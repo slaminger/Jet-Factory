@@ -16,6 +16,7 @@ import (
 	"strings"
 
 	"github.com/AlecAivazis/survey/v2"
+	"github.com/Mirantis/virtlet/pkg/diskimage/guestfs"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/mount"
@@ -46,6 +47,9 @@ var (
 	distribution        Distribution
 	variant             Variant
 	baseName, buildarch string
+	imageFile           string
+
+	hekateZip = hekateURL[strings.LastIndex(hekateURL, "/")+1:]
 
 	isVariant, isAndroid = false, false
 	hekate, staging      = "hekate", "staging"
@@ -60,9 +64,314 @@ const (
 	hekateVersion = "5.2.0"
 	nyxVersion    = "0.9.0"
 	hekateURL     = "https://github.com/CTCaer/hekate/releases/download/v${hekate_version}/hekate_ctcaer_${hekate_version}_Nyx_${nyx_version}.zip"
-	//hekate_zip=${hekate_url##*/}
-	hekateBin = "hekate_ctcaer_" + hekateVersion + ".bin"
+	hekateBin     = "hekate_ctcaer_" + hekateVersion + ".bin"
 )
+
+/* Menu - CLI
+* Selector function
+ */
+
+// CliSelector : Select an item in a menu froim cli
+func CliSelector(label string, items []string) string {
+	var inputValue string
+	prompt := &survey.Select{
+		Message: label,
+		Options: items,
+	}
+	survey.AskOne(prompt, &inputValue)
+	return inputValue
+}
+
+/* Net utilities
+* WalkURL using regex
+* Wget to download a file
+ */
+
+// WalkURL : Walk a URL using a regex, and return the matches
+func WalkURL(source, regex string) []string {
+	resp, err := http.Get(source)
+	if err != nil {
+		fmt.Println(err)
+		return nil
+	}
+	defer resp.Body.Close()
+
+	if !(resp.StatusCode == http.StatusOK) {
+		return nil
+	}
+	bodyBytes, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		fmt.Println(err)
+		return nil
+	}
+
+	sanitizedHTML := strip.StripTags(string(bodyBytes))
+	search, _ := regexp.Compile(regex)
+	query := search.FindAllString(sanitizedHTML, -1)
+
+	return query
+}
+
+// Wget : Download a file in given path
+func Wget(url, filepath string) error {
+	// Create the file
+	out, err := os.Create(filepath)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+
+	// Get the data
+	resp, err := http.Get(url)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	// Check server response
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("bad status: %s", resp.Status)
+	}
+
+	// Writer the body to file
+	_, err = io.Copy(out, resp.Body)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+/* System utilities
+* Docker Spawn container
+* Archive extractor
+* Guestfs mount, create disk
+ */
+
+// Extractor : Archive extractor, supports : *.tar.*, *.xz, *.gz, *.zip, *.7zip
+func Extractor(archive, path string) error {
+	// TODO : Implement this
+	return nil
+}
+
+// SpawnContainer : Spawns a container based on dockerImageName
+func SpawnContainer(cmd, env []string, volume [2]string) error {
+	ctx := context.Background()
+	cli, err := client.NewClient(client.DefaultDockerHost, client.DefaultVersion, nil, map[string]string{"Content-Type": "application/json"})
+	if err != nil {
+		return err
+	}
+
+	// cli.ImageBuild(ctx)
+
+	reader, err := cli.ImagePull(ctx, dockerImageName, types.ImagePullOptions{})
+	if err != nil {
+		return err
+	}
+	io.Copy(os.Stdout, reader)
+
+	resp, err := cli.ContainerCreate(ctx, &container.Config{
+		Image: dockerImageName,
+		Cmd:   cmd,
+		Env:   env,
+	}, &container.HostConfig{
+		Mounts: []mount.Mount{
+			{
+				Type:   mount.TypeVolume,
+				Source: volume[0],
+				Target: volume[1],
+			},
+		},
+	}, nil, baseName)
+	if err != nil {
+		return err
+	}
+
+	if err := cli.ContainerStart(ctx, resp.ID, types.ContainerStartOptions{}); err != nil {
+		return err
+	}
+
+	if _, err := cli.ContainerWait(ctx, resp.ID); err != nil {
+		return err
+	}
+
+	out, err := cli.ContainerLogs(ctx, resp.ID, types.ContainerLogsOptions{ShowStdout: true})
+	if err != nil {
+		return err
+	}
+
+	stdcopy.StdCopy(os.Stdout, os.Stderr, out)
+	return nil
+}
+
+// MountImage :
+func MountImage(imgFile, mountDir string) (*guestfs.GuestfsError, error) {
+	disk := imgFile
+
+	g, errno := guestfs.Create()
+	if errno != nil {
+		return nil, errno
+	}
+
+	/* Attach the disk image read-only to libguestfs. */
+	optargs := guestfs.OptargsAdd_drive{
+		Format_is_set:   true,
+		Format:          "raw",
+		Readonly_is_set: true,
+		Readonly:        true,
+	}
+	if err := g.Add_drive(disk, &optargs); err != nil {
+		return err, nil
+	}
+
+	/* Run the libguestfs back-end. */
+	if err := g.Launch(); err != nil {
+		return err, nil
+	}
+
+	/* Ask libguestfs to inspect for operating systems. */
+	roots, err := g.Inspect_os()
+	if err != nil {
+		return err, nil
+	}
+	if len(roots) == 0 {
+		panic("inspect-vm: no operating systems found")
+	}
+
+	var root string
+	if len(roots) == 1 {
+		root = roots[0]
+	} else {
+		root = CliSelector("Select a root partition to mount: ", roots)
+	}
+
+	if err := g.Mount(root, mountDir); err != nil {
+		return err, nil
+	}
+
+	/* Because we wrote to the disk and we want to detect write
+	* errors, call g:shutdown.  You don't need to do this:
+	* g.Close will do it implicitly.
+	 */
+	if err = g.Shutdown(); err != nil {
+		fmt.Sprintf("write to disk failed: %s", err)
+		return err, nil
+	}
+
+	return nil, nil
+}
+
+// CreateDisk :
+func CreateDisk(imgFile, outDir string) (*guestfs.GuestfsError, error) {
+	// TODO-2
+	output := outDir + imgFile
+
+	g, errno := guestfs.Create()
+	if errno != nil {
+		return nil, errno
+	}
+	defer g.Close()
+
+	/* Create a raw-format sparse disk image, 512 MB in size. */
+	// TODO : Create disk, use DU to get dir size
+	// if err := g. (output, "raw", 512*1024*1024); err != nil {
+	//return err
+	//}
+
+	/* Set the trace flag so that we can see each libguestfs call. */
+	g.Set_trace(true)
+
+	/* Attach the disk image to libguestfs. */
+	optargs := guestfs.OptargsAdd_drive{
+		Format_is_set:   true,
+		Format:          "raw",
+		Readonly_is_set: true,
+		Readonly:        false,
+	}
+	if err := g.Add_drive(output, &optargs); err != nil {
+		return err, nil
+	}
+
+	/* Run the libguestfs back-end. */
+	if err := g.Launch(); err != nil {
+		return err, nil
+	}
+
+	/* Get the list of devices.  Because we only added one drive
+	 * above, we expect that this list should contain a single
+	 * element.
+	 */
+	devices, err := g.List_devices()
+	if err != nil {
+		return err, nil
+	}
+	if len(devices) != 1 {
+		panic("expected a single device from list-devices")
+	}
+
+	/* Partition the disk as one single MBR partition. */
+	err = g.Part_disk(devices[0], "mbr")
+	if err != nil {
+		return err, nil
+	}
+
+	/* Get the list of partitions.  We expect a single element, which
+	 * is the partition we have just created.
+	 */
+	partitions, err := g.List_partitions()
+	if err != nil {
+		return err, nil
+	}
+	if len(partitions) != 1 {
+		panic("expected a single partition from list-partitions")
+	}
+
+	/* Create a filesystem on the partition. */
+	err = g.Mkfs("ext4", partitions[0], nil)
+	if err != nil {
+		return err, nil
+	}
+
+	err = g.Close()
+	if err != nil {
+		return err, nil
+	}
+	return nil, nil
+}
+
+/* Rootfs Image creation
+* Chroot into the filesystem
+ */
+
+// IsDistro : Checks if a distribution is avalaible in the config files
+func IsDistro(name string) (err error) {
+	// Check if name match a known distribution
+	for i := 0; i < len(basesDistro); i++ {
+		if name == basesDistro[i].Name {
+			baseName = basesDistro[i].Name
+			distribution = Distribution{Name: basesDistro[i].Name, Architectures: basesDistro[i].Architectures, Configs: basesDistro[i].Configs, Packages: basesDistro[i].Packages}
+			return nil
+		}
+		for j := 0; j < len(basesDistro[i].Variants); j++ {
+			if name == basesDistro[i].Variants[j].Name {
+				isVariant = true
+				variant = Variant{Name: basesDistro[i].Variants[j].Name}
+				return nil
+			}
+		}
+	}
+	return err
+}
+
+// IsValidArchitecture : Check if the inputed architecture can be found for the distribution
+func IsValidArchitecture() (archi *string) {
+	for archis := range distribution.Architectures {
+		if buildarch == archis {
+			return &buildarch
+		}
+	}
+	return nil
+}
 
 // PreChroot : Copy qemu-aarch64-static binary and mount bind the directories
 func PreChroot(mount [2]string) error {
@@ -124,167 +433,19 @@ func PrepareFiles(basePath string) error {
 		return err
 	}
 
-	return nil
-}
+	if true {
 
-// Wget : Download a file in given path
-func Wget(url, filepath string) error {
-	// Create the file
-	out, err := os.Create(filepath)
-	if err != nil {
-		return err
-	}
-	defer out.Close()
-
-	// Get the data
-	resp, err := http.Get(url)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	// Check server response
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("bad status: %s", resp.Status)
-	}
-
-	// Writer the body to file
-	_, err = io.Copy(out, resp.Body)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// Extractor :
-func Extractor(archive, path string) error {
-
-	return nil
-}
-
-// SpawnContainer : Spawns a container based on dockerImageName
-func SpawnContainer(cmd, env []string, volume [2]string) error {
-	ctx := context.Background()
-	cli, err := client.NewClient(client.DefaultDockerHost, client.DefaultVersion, nil, map[string]string{"Content-Type": "application/json"})
-	if err != nil {
-		return err
-	}
-
-	// cli.ImageBuild(ctx)
-
-	reader, err := cli.ImagePull(ctx, dockerImageName, types.ImagePullOptions{})
-	if err != nil {
-		return err
-	}
-	io.Copy(os.Stdout, reader)
-
-	resp, err := cli.ContainerCreate(ctx, &container.Config{
-		Image: dockerImageName,
-		Cmd:   cmd,
-		Env:   env,
-	}, &container.HostConfig{
-		Mounts: []mount.Mount{
-			{
-				Type:   mount.TypeVolume,
-				Source: volume[0],
-				Target: volume[1],
-			},
-		},
-	}, nil, baseName)
-	if err != nil {
-		return err
-	}
-
-	if err := cli.ContainerStart(ctx, resp.ID, types.ContainerStartOptions{}); err != nil {
-		return err
-	}
-
-	if _, err := cli.ContainerWait(ctx, resp.ID); err != nil {
-		return err
-	}
-
-	out, err := cli.ContainerLogs(ctx, resp.ID, types.ContainerLogsOptions{ShowStdout: true})
-	if err != nil {
-		return err
-	}
-
-	stdcopy.StdCopy(os.Stdout, os.Stderr, out)
-	return nil
-}
-
-// IsDistro : Checks if a distribution is avalaible in the config files
-func IsDistro(name string) (err error) {
-	// Check if name match a known distribution
-	for i := 0; i < len(basesDistro); i++ {
-		if name == basesDistro[i].Name {
-			baseName = basesDistro[i].Name
-			distribution = Distribution{Name: basesDistro[i].Name, Architectures: basesDistro[i].Architectures, Configs: basesDistro[i].Configs, Packages: basesDistro[i].Packages}
-			return nil
-		}
-		for j := 0; j < len(basesDistro[i].Variants); j++ {
-			if name == basesDistro[i].Variants[j].Name {
-				isVariant = true
-				variant = Variant{Name: basesDistro[i].Variants[j].Name}
-				return nil
-			}
+	} else {
+		if err := Extractor(imageFile, basePath); err != nil {
+			return err
 		}
 	}
-	return err
-}
-
-// IsValidArchitecture : Check if the inputed architecture can be found for the distribution
-func IsValidArchitecture() (archi *string) {
-	for archis := range distribution.Architectures {
-		if buildarch == archis {
-			fmt.Println("Found valid architecture: ", buildarch)
-			return &buildarch
-		}
-	}
-	fmt.Println(buildarch, "is not a valid architecture !")
 	return nil
-}
-
-// CliSelector : Select an item in a menu froim cli
-func CliSelector(label string, items []string) string {
-	var inputValue string
-	prompt := &survey.Select{
-		Message: label,
-		Options: items,
-	}
-	survey.AskOne(prompt, &inputValue)
-	return inputValue
-}
-
-// WalkURL : Walk a URL using a regex, and return the matches
-func WalkURL(source, regex string) []string {
-	resp, err := http.Get(source)
-	if err != nil {
-		fmt.Println(err)
-		return nil
-	}
-	defer resp.Body.Close()
-
-	if !(resp.StatusCode == http.StatusOK) {
-		return nil
-	}
-	bodyBytes, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		fmt.Println(err)
-		return nil
-	}
-
-	sanitizedHTML := strip.StripTags(string(bodyBytes))
-	search, _ := regexp.Compile(regex)
-	query := search.FindAllString(sanitizedHTML, -1)
-
-	return query
 }
 
 // DownloadURLfromTags : Retrieve a URL for a distribution based on a version
 func DownloadURLfromTags(filepath string) (err error) {
 	var constructedURL string
-
 	for _, avalaibleMirror := range distribution.Architectures[buildarch] {
 		if strings.Contains(avalaibleMirror, "{VERSION}") || strings.Contains(avalaibleMirror, "{BUILDARCH}") {
 			constructedURL = strings.Split(avalaibleMirror, "/{VERSION}")[0]
@@ -298,7 +459,7 @@ func DownloadURLfromTags(filepath string) (err error) {
 			constructedURL = strings.Replace(avalaibleMirror, "{VERSION}/", version, 1)
 			regexURL = WalkURL(constructedURL, ".*.raw.xz")
 
-			imageFile := CliSelector("Select an image file: ", regexURL)
+			imageFile = CliSelector("Select an image file: ", regexURL)
 			if imageFile == "" {
 				return err
 			}
@@ -317,6 +478,7 @@ func DownloadURLfromTags(filepath string) (err error) {
 		if err := Wget(constructedURL, filepath); err != nil {
 			return err
 		}
+		return nil
 	}
 	return nil
 }
@@ -386,8 +548,10 @@ func Factory(distro string, outDir string) (err error) {
 		path := [2]string{basePath, "/root/" + distro}
 
 		if archi := IsValidArchitecture(); archi == nil {
+			fmt.Println(buildarch, "is not a valid architecture !")
 			return err
 		}
+		fmt.Println("Found valid architecture: ", buildarch)
 
 		if err := PrepareFiles(basePath); err != nil {
 			return err
