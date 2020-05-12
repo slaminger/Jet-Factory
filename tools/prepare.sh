@@ -19,10 +19,11 @@ mkdir -p ${dl_dir} && cd ${dl_dir}
 echo "Downloading Hekate..."
 wget -nc -q --show-progress ${hekate_url}
 
-if [ ! -f ${dl_dir}/${img%.*} ]; then
+if [[ ! -f ${dl_dir}/${img%.*} ]]; then
 	# Download file if it doesn't exist, or is forced to download.
 	echo "Downloading image file..."
 	wget -nc --show-progress ${img_url}
+	
 	cd ${build_dir}
 
 	case ${img} in
@@ -41,15 +42,17 @@ if [ ! -f ${dl_dir}/${img%.*} ]; then
 	esac
 fi
 
+unzip ${hekate_zip} -d ${build_dir}
+
 cd ${dl_dir}
 
-if [ $(file -b --mime-type "${img%.*}") == "application/octet-stream" ]; then
+if [[ $(file -b --mime-type "${img%.*}") == "application/octet-stream" ]]; then
 	echo "Preparing image file..."
 	loop=$(sudo kpartx -l "${img%.*}" | grep -o -E 'loop[[:digit:]]' | head -1)
 	sudo kpartx -a "${img%.*}"
 	
 	echo "Searching for LVM2 partition type..."
-	if [ $(file -b "${img%.*}" | grep "[[:digit:]] : ID=0x8e.*") ]; then
+	if [[ $(file -b "${img%.*}" | grep "[[:digit:]] : ID=0x8e.*") ]]; then
 		echo "Found LVM2 partition..."
 		rootname=$(sudo lvs | sed 's/root//' | tail -1 | grep -o -E '[[:alpha:]]{3}+')
 
@@ -64,7 +67,7 @@ if [ $(file -b --mime-type "${img%.*}") == "application/octet-stream" ]; then
 	fi
 
 	echo "Copying files to build directory..."
-	cp -prd ${build_dir}/switchroot/install/* ${build_dir} &&
+	sudo cp -prd ${build_dir}/switchroot/install/* ${build_dir}
 	
 	echo "Unmounting partition..."
 	sudo umount "${build_dir}/switchroot/install" 
