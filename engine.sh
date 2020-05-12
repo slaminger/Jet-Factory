@@ -1,36 +1,7 @@
 #!/bin/bash
-img_url=${@: -2}
-build_dir="$(readlink -fm ${@: -1})"
-dl_dir="${build_dir}/downloadedFiles/"
-img="${img_url##*/}"
 
-# Hekate files
-hekate_version=5.2.0
-nyx_version=0.9.0
-hekate_url=https://github.com/CTCaer/hekate/releases/download/v${hekate_version}/hekate_ctcaer_${hekate_version}_Nyx_${nyx_version}.zip
-hekate_zip=${hekate_url##*/}
-hekate_bin=hekate_ctcaer_${hekate_version}.bin
-
-PreChroot() {
-	echo "Pre chroot setup..."
-	cp /usr/bin/qemu-aarch64-static ${build_dir}/usr/bin/
-	mount --bind ${build_dir} ${build_dir} &&
-	mount --bind  "${build_dir}/bootloader/" "${build_dir}/boot/"
-}
-
-PostChroot() {
-	echo "Post chroot cleaning..."
-	umount "${build_dir}/boot/" && umount ${build_dir}
-	rm ${build_dir}/usr/bin/qemu-aarch64-static
-}
-
-PrepareFiles() {
-	mkdir -p ${build_dir}/{bootloader,switchroot/{install,arch}} ${dl_dir}
-	cd ${dl_dir}
-	
-	wget -nc -q --show-progress ${hekate_url}
+PrepareFiles() {	
 	unzip ${hekate_zip} -d ${build_dir}
-	wget -nc --show-progress ${img_url}		
 
 	if [[ ! -f ${dl_dir}/${img%.*} ]]; then
 		cd ${build_dir}
@@ -132,19 +103,3 @@ CreateImage() {
 		dd if=${img} bs=1M count=10 of="SWR-${img%%.*}.img" oflag=append conv=notrunc status=noxfer
 	fi
 }
-
-if [[ $@ =~ "pre" ]]; then
-	PreChroot
-fi
-
-if [[ $@ =~ "pkg" ]]; then
-	findPkgManager
-elif [[ $@ =~ "files" ]]; then
-	PrepareFiles
-elif [[ $@ =~ "image" ]]; then
-	CreateImage
-fi
-
-if [[ $@ =~ "post" ]]; then
-	PostChroot
-fi
