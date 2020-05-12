@@ -1,5 +1,5 @@
 #!/bin/bash
-build_dir=$1
+build_dir="$(readlink -fm $1)"
 
 echo "Post chroot cleaning..."
 umount "${build_dir}/boot/" && umount ${build_dir}

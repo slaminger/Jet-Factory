@@ -1,8 +1,8 @@
 #!/bin/bash
 img_url=$1
-build_dir=$2
-dl_dir=${build_dir}/downloadedFiles
-img="${dl_dir}/${img_url##*/}"
+build_dir="$(readlink -fm $2)"
+dl_dir="${build_dir}/downloadedFiles/"
+img="${img_url##*/}"
 
 # Hekate files
 hekate_version=5.2.0
@@ -11,65 +11,65 @@ hekate_url=https://github.com/CTCaer/hekate/releases/download/v${hekate_version}
 hekate_zip=${hekate_url##*/}
 hekate_bin=hekate_ctcaer_${hekate_version}.bin
 
+mkdir -p ${build_dir}/{bootloader,switchroot/{install,arch}}
+
 # cd into download directory
 mkdir -p ${dl_dir} && cd ${dl_dir}
 
 echo "Downloading Hekate..."
 wget -nc -q --show-progress ${hekate_url}
 
-# Download file if it doesn't exist, or is forced to download.
-echo "Downloading image file..."
-wget -nc --show-progress ${img_url}
+if [ ! -f ${dl_dir}/${img%.*} ]; then
+	# Download file if it doesn't exist, or is forced to download.
+	echo "Downloading image file..."
+	wget -nc --show-progress ${img_url}
+	cd ${build_dir}
 
-cd ${build_dir}
+	case ${img} in
+		*.tar)       tar xvf "${dl_dir}/${img}"     ;;
+		*.tar.*)     tar xvjf "${dl_dir}/${img}"    ;;
+		*.tbz2)      tar xvjf "${dl_dir}/${img}"    ;;
+		*.tgz)       tar xvzf "${dl_dir}/${img}"    ;;
+		*.lzma)      unlzma "${dl_dir}/${img}"      ;;
+		*.bz2)       bunzip2 "${dl_dir}/${img}"     ;;
+		*.rar)       unrar x -ad "${dl_dir}/${img}" ;;
+		*.gz)        gunzip "${dl_dir}/${img}"      ;;
+		*.zip)       unzip "${dl_dir}/${img}"       ;;
+		*.Z)         uncompress "${dl_dir}/${img}"  ;;
+		*.7z)        7z x "${dl_dir}/${img}"        ;;
+		*.xz)        unxz "${dl_dir}/${img}"        ;;
+	esac
+fi
 
-case ${img} in
-	*.tar)       tar xvf ${img}     ;;
-	*.tar.*)     tar xvjf ${img}    ;;
-	*.tbz2)      tar xvjf ${img}    ;;
-	*.tgz)       tar xvzf ${img}    ;;
-	*.lzma)      unlzma ${img}      ;;
-	*.bz2)       bunzip2 ${img}     ;;
-	*.rar)       unrar x -ad ${img} ;;
-	*.gz)        gunzip ${img}      ;;
-	*.zip)       unzip ${img}       ;;
-	*.Z)         uncompress ${img}  ;;
-	*.7z)        7z x ${img}        ;;
-	*.xz)        unxz ${img}        ;;
-esac
+cd ${dl_dir}
 
-echo "${img##*/} extracted successuly !" 
-
-if [ $(file -b --mime-type ${img%%.*}) == "application/octet-stream" ]; then
-	echo "Searching for image file..."
-		
+if [ $(file -b --mime-type "${img%.*}") == "application/octet-stream" ]; then
 	echo "Preparing image file..."
-	loop=$(kpartx -l ${img%%.*} | grep -o -E 'loop[[:digit:]]' | head -1)
-	kpartx -a ${img%%.*}
+	loop=$(sudo kpartx -l "${img%.*}" | grep -o -E 'loop[[:digit:]]' | head -1)
+	sudo kpartx -a "${img%.*}"
 	
 	echo "Searching for LVM2 partition type..."
-	if [ $(file -b ${img%%.*} | grep "[[:digit:]] : ID=0x8e.*") ]; then
-
-		echo "Found LVM2 partition..."  && echo "Searching for rootfs partition..."
-		rootname=$(lvs | sed 's/root//' | tail -1 | grep -o -E '[[:alpha:]]{3}+')
+	if [ $(file -b "${img%.*}" | grep "[[:digit:]] : ID=0x8e.*") ]; then
+		echo "Found LVM2 partition..."
+		rootname=$(sudo lvs | sed 's/root//' | tail -1 | grep -o -E '[[:alpha:]]{3}+')
 
 		echo "Detaching previous LVM2 partition..."
-		vgchange -an ${rootname} && vgchange -ay ${rootname}
-		mount /dev/mapper/${rootname}-root "${build_dir}/switchroot/install"
+		sudo vgchange -an ${rootname} && sudo vgchange -ay ${rootname}
+		sudo mount /dev/mapper/${rootname}-root "${build_dir}/switchroot/install"
 	else
 		# TODO : Shouldn't try to mount 1st ext2,3,4 partition but biggest
 		echo "Found ext2,3,4 partition..."
-		num=$(file -b ${img%%.*} | grep -o "[[:digit:]] : ID=0x83.*" | cut -d' ' -f1)
-		mount /dev/${loop}p${num} "${build_dir}/switchroot/install"
+		num=$(file -b ${img%.*} | grep -o "[[:digit:]] : ID=0x83.*" | cut -d' ' -f1)
+		sudo mount /dev/${loop}p${num} "${build_dir}/switchroot/install"
 	fi
 
 	echo "Copying files to build directory..."
 	cp -prd ${build_dir}/switchroot/install/* ${build_dir} &&
 	
 	echo "Unmounting partition..."
-	umount "${build_dir}/switchroot/install" 
-	[[ ! -z ${rootname} ]] && vgchange -an ${rootname}
-	kpartx -d ${img%%.*}
+	sudo umount "${build_dir}/switchroot/install" 
+	[[ ! -z ${rootname} ]] && sudo vgchange -an ${rootname}
+	sudo kpartx -d ${img%.*}
 fi
 
 echo "Finishing rootfs preparation..."

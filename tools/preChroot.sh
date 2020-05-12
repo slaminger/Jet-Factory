@@ -1,5 +1,5 @@
 #!/bin/bash
-build_dir=$1
+build_dir="$(readlink -fm $1)"
 
 echo "Pre chroot setup..."
 cp /usr/bin/qemu-aarch64-static ${build_dir}/usr/bin/

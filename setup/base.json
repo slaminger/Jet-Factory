@@ -51,7 +51,7 @@
         "variants": [],
         "buildarch": {
             "aarch64": [
-                "https://download.fedoraproject.org/pub/fedora/linux/releases/{VERSION}/Server/{BUILDARCH}/images/"
+                "https://download.fedoraproject.org/pub/fedora/linux/releases/{VERSION}/Server/aarch64/images/"
             ]
         },
         "configs": [],
@@ -93,7 +93,7 @@
         "name": "leap",
         "buildarch": {
             "aarch64": [
-                "http://download.opensuse.org/ports/{BUILDARCH}/distribution/leap/{VERSION}/appliances/"
+                "http://download.opensuse.org/ports/aarhc64/distribution/leap/{VERSION}/appliances/"
             ]
         },
         "configs": [],

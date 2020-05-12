@@ -3,7 +3,6 @@ package main
 // TODO : Handle Staging packages installation
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
 	"flag"
@@ -59,7 +58,7 @@ var (
 )
 
 // SpawnContainer : Spawns a container based on dockerImageName
-func SpawnContainer(cmd []string, volume *[2]string) error {
+func SpawnContainer(cmd, env []string, volume *[2]string) error {
 	ctx := context.Background()
 	cli, err := client.NewClient(client.DefaultDockerHost, client.DefaultVersion, nil, map[string]string{"Content-Type": "application/json"})
 	if err != nil {
@@ -75,6 +74,7 @@ func SpawnContainer(cmd []string, volume *[2]string) error {
 	resp, err := cli.ContainerCreate(ctx, &container.Config{
 		Image: dockerImageName,
 		Cmd:   cmd,
+		Env:   env,
 	}, &container.HostConfig{
 		Mounts: []mount.Mount{
 			{
@@ -152,6 +152,7 @@ func CliSelector(label string, items []string) string {
 func WalkURL(source, regex string) []string {
 	resp, err := http.Get(source)
 	if err != nil {
+		fmt.Println(err)
 		return nil
 	}
 	defer resp.Body.Close()
@@ -161,24 +162,24 @@ func WalkURL(source, regex string) []string {
 	}
 	bodyBytes, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
+		fmt.Println(err)
 		return nil
 	}
 
 	sanitizedHTML := strip.StripTags(string(bodyBytes))
 	search, _ := regexp.Compile(regex)
 	query := search.FindAllString(sanitizedHTML, -1)
+
 	return query
 }
 
 // DownloadURLfromTags : Retrieve a URL for a distribution based on a version
 func DownloadURLfromTags(path [2]string) (err error) {
 	var constructedURL string
+
 	for _, avalaibleMirror := range distribution.Architectures[buildarch] {
-
 		if strings.Contains(avalaibleMirror, "{VERSION}") || strings.Contains(avalaibleMirror, "{BUILDARCH}") {
-
-			temporaryURL := strings.Replace(avalaibleMirror, "{BUILDARCH}", buildarch, 1)
-			constructedURL = strings.Split(temporaryURL, "/{VERSION}")[0]
+			constructedURL = strings.Split(avalaibleMirror, "/{VERSION}")[0]
 			regexURL := WalkURL(constructedURL, "(?m)^([[:digit:]]{1,3}.[[:digit:]]+|[[:digit:]]+)(?:/)")
 			version := CliSelector("Select a version: ", regexURL)
 
@@ -186,15 +187,16 @@ func DownloadURLfromTags(path [2]string) (err error) {
 				return err
 			}
 
-			constructedURL = strings.Replace(temporaryURL, "{VERSION}/", version, 1)
+			constructedURL = strings.Replace(avalaibleMirror, "{VERSION}/", version, 1)
 			regexURL = WalkURL(constructedURL, ".*.raw.xz")
-			imageFile := CliSelector("Select an image file: ", regexURL)
 
+			imageFile := CliSelector("Select an image file: ", regexURL)
 			if imageFile == "" {
 				return err
 			}
 
 			constructedURL = constructedURL + imageFile
+
 		} else {
 			constructedURL = avalaibleMirror
 		}
@@ -207,45 +209,36 @@ func DownloadURLfromTags(path [2]string) (err error) {
 	fmt.Println("Mirror URL selected : ", constructedURL)
 
 	cmd := exec.Command("/bin/bash", "./tools/prepare.sh", constructedURL, path[0])
-	stdout, err := cmd.StdoutPipe()
+	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return err
+		fmt.Println(fmt.Sprint(err) + ": " + string(output))
+		return
 	}
-	cmd.Start()
-
-	buf := bufio.NewReader(stdout) // Notice that this is not in a loop
-	num := 1
-	for {
-		line, _, _ := buf.ReadLine()
-		if num > 3 {
-			os.Exit(0)
-		}
-		num++
-		fmt.Println(string(line))
-	}
+	fmt.Println(string(output))
+	return nil
 }
 
 // ApplyConfigsInChrootEnv : Runs one or multiple command in a chroot environment; Returns nil if successful
 func ApplyConfigsInChrootEnv(path [2]string) error {
-	if err := SpawnContainer([]string{"/bin/bash", "preChroot.sh"}, &path); err != nil {
+	if err := SpawnContainer([]string{"/bin/bash", "preChroot.sh"}, nil, &path); err != nil {
 		return err
 	}
 
 	if isVariant {
 		for _, config := range variant.Configs {
-			if err := SpawnContainer([]string{"arch-chroot", config}, &path); err != nil {
+			if err := SpawnContainer([]string{"arch-chroot", config, path[1]}, nil, &path); err != nil {
 				return err
 			}
 		}
 	}
 
 	for _, config := range distribution.Configs {
-		if err := SpawnContainer([]string{"arch-chroot", config}, &path); err != nil {
+		if err := SpawnContainer([]string{"arch-chroot", config, path[1]}, nil, &path); err != nil {
 			return err
 		}
 	}
 
-	if err := SpawnContainer([]string{"/bin/bash", "postChroot.sh"}, &path); err != nil {
+	if err := SpawnContainer([]string{"/bin/bash", "postChroot.sh"}, nil, &path); err != nil {
 		return err
 	}
 
@@ -256,22 +249,22 @@ func ApplyConfigsInChrootEnv(path [2]string) error {
 func InstallPackagesInChrootEnv(path [2]string) error {
 	var pkgManager string
 
-	if err := SpawnContainer([]string{"/bin/bash", "preChroot.sh"}, &path); err != nil {
+	if err := SpawnContainer([]string{"/bin/bash", "preChroot.sh"}, nil, &path); err != nil {
 		return err
 	}
 
 	// TODO-4
 	if isVariant {
-		if err := SpawnContainer([]string{"arch-chroot", "`/bin/bash findPackageManager.sh`", strings.Join(variant.Packages, ",")}, &path); err != nil {
+		if err := SpawnContainer([]string{"arch-chroot", "`/bin/bash findPackageManager.sh`", strings.Join(variant.Packages, ","), path[1]}, nil, &path); err != nil {
 			return err
 		}
 	}
 
-	if err := SpawnContainer([]string{"arch-chroot", pkgManager, strings.Join(distribution.Packages, ",")}, &path); err != nil {
+	if err := SpawnContainer([]string{"arch-chroot", pkgManager, strings.Join(distribution.Packages, ","), path[1]}, nil, &path); err != nil {
 		return err
 	}
 
-	if err := SpawnContainer([]string{"/bin/bash", "postChroot.sh"}, &path); err != nil {
+	if err := SpawnContainer([]string{"/bin/bash", "postChroot.sh"}, nil, &path); err != nil {
 		return err
 	}
 
@@ -310,13 +303,13 @@ func Factory(distro string, outDir string) (err error) {
 			return err
 		}
 
-		if err := SpawnContainer([]string{"/bin/bash", "createImage.sh", hekate, baseName, "."}, &path); err != nil {
+		if err := SpawnContainer([]string{"/bin/bash", "createImage.sh", "hekate", baseName}, nil, &path); err != nil {
 			return err
 		}
 	} else {
 		path := [2]string{basePath, "/root/android"}
 		dockerImageName = "pablozaiden/switchroot-android-build:1.0.0"
-		if err := SpawnContainer([]string{"-e ROM_NAME=" + distro}, &path); err != nil {
+		if err := SpawnContainer(nil, []string{"ROM_NAME=" + distro}, &path); err != nil {
 			return err
 		}
 	}
