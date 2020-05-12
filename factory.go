@@ -12,7 +12,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"os/exec"
 	"regexp"
 	"strings"
 
@@ -57,8 +56,115 @@ var (
 	_           = json.Unmarshal([]byte(baseJSON), &basesDistro)
 )
 
+const (
+	hekateVersion = "5.2.0"
+	nyxVersion    = "0.9.0"
+	hekateURL     = "https://github.com/CTCaer/hekate/releases/download/v${hekate_version}/hekate_ctcaer_${hekate_version}_Nyx_${nyx_version}.zip"
+	//hekate_zip=${hekate_url##*/}
+	hekateBin = "hekate_ctcaer_" + hekateVersion + ".bin"
+)
+
+// PreChroot : Copy qemu-aarch64-static binary and mount bind the directories
+func PreChroot(mount [2]string) error {
+	err := SpawnContainer(
+		[]string{
+			"cp", "/usr/bin/qemu-aarch64-static",
+			mount[1] + "/usr/bin",
+
+			"&&", "mount", "--bind",
+			mount[1], mount[1],
+
+			"&&", "mount", "--bind",
+			mount[1] + "/bootloader",
+			mount[1] + "/boot",
+		},
+		nil,
+		mount,
+	)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// PostChroot : Remove qemu-aarch64-static binary and unmount the binded directories
+func PostChroot(mounted [2]string) error {
+	err := SpawnContainer(
+		[]string{
+			"rm", mounted[1] + "/usr/bin/qemu-aarch64-static",
+			"&&", "umount", mounted[1],
+			"&&", "mount", mounted[1] + "/boot",
+		},
+		nil,
+		mounted,
+	)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// PrepareFiles :
+func PrepareFiles(basePath string) error {
+	if err := os.MkdirAll(basePath+"/bootloader", os.ModePerm); err != nil {
+		return err
+	}
+	if err := os.MkdirAll(basePath+"/switchroot/install", os.ModePerm); err != nil {
+		return err
+	}
+	if err := os.MkdirAll(basePath+"/downloadedFiles", os.ModePerm); err != nil {
+		return err
+	}
+
+	if err := Wget(hekateURL, basePath+"/downloadedFiles"); err != nil {
+		return err
+	}
+
+	if err := DownloadURLfromTags(basePath + "/downloadedFiles"); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// Wget : Download a file in given path
+func Wget(url, filepath string) error {
+	// Create the file
+	out, err := os.Create(filepath)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+
+	// Get the data
+	resp, err := http.Get(url)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	// Check server response
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("bad status: %s", resp.Status)
+	}
+
+	// Writer the body to file
+	_, err = io.Copy(out, resp.Body)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// Extractor :
+func Extractor(archive, path string) error {
+
+	return nil
+}
+
 // SpawnContainer : Spawns a container based on dockerImageName
-func SpawnContainer(cmd, env []string, volume *[2]string) error {
+func SpawnContainer(cmd, env []string, volume [2]string) error {
 	ctx := context.Background()
 	cli, err := client.NewClient(client.DefaultDockerHost, client.DefaultVersion, nil, map[string]string{"Content-Type": "application/json"})
 	if err != nil {
@@ -150,7 +256,7 @@ func CliSelector(label string, items []string) string {
 	return inputValue
 }
 
-// WalkURL :
+// WalkURL : Walk a URL using a regex, and return the matches
 func WalkURL(source, regex string) []string {
 	resp, err := http.Get(source)
 	if err != nil {
@@ -176,7 +282,7 @@ func WalkURL(source, regex string) []string {
 }
 
 // DownloadURLfromTags : Retrieve a URL for a distribution based on a version
-func DownloadURLfromTags(path [2]string) (err error) {
+func DownloadURLfromTags(filepath string) (err error) {
 	var constructedURL string
 
 	for _, avalaibleMirror := range distribution.Architectures[buildarch] {
@@ -207,40 +313,35 @@ func DownloadURLfromTags(path [2]string) (err error) {
 			fmt.Println("Couldn't found mirror:", constructedURL)
 			return err
 		}
+		fmt.Println("Mirror URL selected : ", constructedURL)
+		if err := Wget(constructedURL, filepath); err != nil {
+			return err
+		}
 	}
-	fmt.Println("Mirror URL selected : ", constructedURL)
-
-	cmd := exec.Command("/bin/bash", "./tools/engine.sh", "files", constructedURL, path[0])
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		fmt.Println(fmt.Sprint(err) + ": " + string(output))
-		return
-	}
-	fmt.Println(string(output))
 	return nil
 }
 
 // ApplyConfigsInChrootEnv : Runs one or multiple command in a chroot environment; Returns nil if successful
 func ApplyConfigsInChrootEnv(path [2]string) error {
-	if err := SpawnContainer([]string{"/bin/bash", "/tools/preChroot.sh"}, nil, &path); err != nil {
+	if err := PreChroot(path); err != nil {
 		return err
 	}
 
 	if isVariant {
 		for _, config := range variant.Configs {
-			if err := SpawnContainer([]string{"arch-chroot", config, path[1]}, nil, &path); err != nil {
+			if err := SpawnContainer([]string{"arch-chroot", config, path[1]}, nil, path); err != nil {
 				return err
 			}
 		}
 	}
 
 	for _, config := range distribution.Configs {
-		if err := SpawnContainer([]string{"arch-chroot", config, path[1]}, nil, &path); err != nil {
+		if err := SpawnContainer([]string{"arch-chroot", config, path[1]}, nil, path); err != nil {
 			return err
 		}
 	}
 
-	if err := SpawnContainer([]string{"/bin/bash", "/tools/postChroot.sh"}, nil, &path); err != nil {
+	if err := PostChroot(path); err != nil {
 		return err
 	}
 
@@ -249,22 +350,22 @@ func ApplyConfigsInChrootEnv(path [2]string) error {
 
 // InstallPackagesInChrootEnv : Installs packages list; Returns nil if successful
 func InstallPackagesInChrootEnv(path [2]string) error {
-	if err := SpawnContainer([]string{"/bin/bash", "/tools/preChroot.sh"}, nil, &path); err != nil {
+	if err := PreChroot(path); err != nil {
 		return err
 	}
 
 	// TODO-4
 	if isVariant {
-		if err := SpawnContainer([]string{"arch-chroot", "`/bin/bash /tools/findPackageManager.sh`", strings.Join(variant.Packages, ","), path[1]}, nil, &path); err != nil {
+		if err := SpawnContainer([]string{"arch-chroot", "`/bin/bash /tools/findPackageManager.sh`", strings.Join(variant.Packages, ","), path[1]}, nil, path); err != nil {
 			return err
 		}
 	}
 
-	if err := SpawnContainer([]string{"arch-chroot", "`/bin/bash /tools/findPackageManager.sh`", strings.Join(distribution.Packages, ","), path[1]}, nil, &path); err != nil {
+	if err := SpawnContainer([]string{"arch-chroot", "`/bin/bash /tools/findPackageManager.sh`", strings.Join(distribution.Packages, ","), path[1]}, nil, path); err != nil {
 		return err
 	}
 
-	if err := SpawnContainer([]string{"/bin/bash", "/tools/postChroot.sh"}, nil, &path); err != nil {
+	if err := PostChroot(path); err != nil {
 		return err
 	}
 
@@ -273,25 +374,22 @@ func InstallPackagesInChrootEnv(path [2]string) error {
 
 // Factory : Build your distribution with the setted options; Returns a pointer on the location of the produced build
 func Factory(distro string, outDir string) (err error) {
+	basePath := outDir + "/" + distro
+
 	if err := IsDistro(distro); err != nil {
 		flag.Usage()
 		return err
 	}
 
-	basePath := outDir + "/" + distro
-
 	fmt.Println("Building:", distro, "\nInside directory:", basePath)
-	if err := os.MkdirAll(basePath, os.ModePerm); err != nil {
-		return err
-	}
-
 	if !isAndroid {
 		path := [2]string{basePath, "/root/" + distro}
+
 		if archi := IsValidArchitecture(); archi == nil {
 			return err
 		}
 
-		if err := DownloadURLfromTags(path); err != nil {
+		if err := PrepareFiles(basePath); err != nil {
 			return err
 		}
 
@@ -303,13 +401,13 @@ func Factory(distro string, outDir string) (err error) {
 			return err
 		}
 
-		if err := SpawnContainer([]string{"/bin/bash", "/tools/createImage.sh", hekate, baseName}, nil, &path); err != nil {
+		if err := SpawnContainer([]string{"/bin/bash", "/tools/createImage.sh", hekate, baseName}, nil, path); err != nil {
 			return err
 		}
 	} else {
 		path := [2]string{basePath, "/root/android"}
 		dockerImageName = "pablozaiden/switchroot-android-build:1.0.0"
-		if err := SpawnContainer(nil, []string{"ROM_NAME=" + distro}, &path); err != nil {
+		if err := SpawnContainer(nil, []string{"ROM_NAME=" + distro}, path); err != nil {
 			return err
 		}
 	}
