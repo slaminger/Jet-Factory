@@ -52,7 +52,7 @@ var (
 	hekate, staging      = false, false
 
 	dockerImageName = "docker.io/library/ubuntu:18.04"
-	baseJSON, _     = ioutil.ReadFile("./setup/base.json")
+	baseJSON, _     = ioutil.ReadFile("./base.json")
 	basesDistro     = []Distribution{}
 	_               = json.Unmarshal([]byte(baseJSON), &basesDistro)
 
