@@ -64,3 +64,9 @@ CreateImage() {
 		7z a "SWR-${img%.*}.7z" ${build_dir}/{bootloader,switchroot}
 	fi
 }
+
+# Actual script
+docker run --rm -ti -v $(dirname "$(readlink -fm $0)"):/root/ jet-factory:latest go run factory.go -prepare $@
+docker run --rm -ti -v $(dirname "$(readlink -fm $0)"):/root/ jet-factory:latest go run factory.go -configs $@
+docker run --rm -ti -v $(dirname "$(readlink -fm $0)"):/root/ jet-factory:latest go run factory.go -packages $@
+docker run --rm -ti -v $(dirname "$(readlink -fm $0)"):/root/ jet-factory:latest go run factory.go -image $@
