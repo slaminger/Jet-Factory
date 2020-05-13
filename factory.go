@@ -232,12 +232,17 @@ func MountImage(imgFile, mountDir string) (*guestfs.GuestfsError, error) {
 		panic("inspect-vm: no operating systems found")
 	}
 
-	var root string
+	var root *string
 	if len(roots) == 1 {
-		root = roots[0]
+		root = &roots[0]
+	} else {
+		root, _ = CliSelector("Select root partition to use:", roots)
+		if root == nil {
+			return err, nil
+		}
 	}
 
-	if err := g.Mount(root, mountDir); err != nil {
+	if err := g.Mount(*root, mountDir); err != nil {
 		return err, nil
 	}
 
