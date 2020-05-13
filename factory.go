@@ -24,7 +24,6 @@ import (
 	"github.com/docker/docker/api/types/mount"
 	"github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/stdcopy"
-	strip "github.com/grokify/html-strip-tags-go"
 	"github.com/mholt/archiver/v3"
 	"github.com/xi2/xz"
 )
@@ -48,14 +47,16 @@ type (
 )
 
 var (
-	distribution         Distribution
-	variant              Variant
-	baseName, buildarch  string
-	imageFile            string
-	isVariant, isAndroid = false, false
-	hekate, staging      bool
-	prepare, configs     bool
-	packages, image      bool
+	distribution              Distribution
+	variant                   Variant
+	baseName, buildarch       string
+	imageFile, packageManager string
+	isVariant, isAndroid      = false, false
+	hekate, staging           bool
+	prepare, configs          bool
+	packages, image           bool
+
+	managerList = []string{"zypper", "dnf", "yum", "pacman", "apt"}
 
 	dockerImageName = "docker.io/library/ubuntu:18.04"
 	baseJSON, _     = ioutil.ReadFile("./base.json")
@@ -91,8 +92,8 @@ func CliSelector(label string, items []string) (answer string, err error) {
 * Wget to download a file
  */
 
-// WalkURL : Walk a URL using a regex, and return the matches
-func WalkURL(source, regex string) []string {
+// WalkURL : Walk a URL, and return the body
+func WalkURL(source string) *string {
 	resp, err := http.Get(source)
 	if err != nil {
 		fmt.Println(err)
@@ -109,11 +110,8 @@ func WalkURL(source, regex string) []string {
 		return nil
 	}
 
-	sanitizedHTML := strip.StripTags(string(bodyBytes))
-	search, _ := regexp.Compile(regex)
-	query := search.FindAllString(sanitizedHTML, -1)
-
-	return query
+	body := string(bodyBytes)
+	return &body
 }
 
 // Wget : Download a file in given path
@@ -151,6 +149,17 @@ func Wget(url, filepath string) error {
 * Archive extractor
 * Guestfs mount, create disk
  */
+
+// DetectPackageManager :
+func DetectPackageManager() (err error) {
+	for _, man := range managerList {
+		if _, err := os.Stat("/usr/bin/" + man); os.IsExist(err) {
+			packageManager = man
+			return nil
+		}
+	}
+	return err
+}
 
 // SpawnContainer : Spawns a container based on dockerImageName
 func SpawnContainer(cmd, env []string, volume [2]string) error {
@@ -521,27 +530,46 @@ func PrepareFiles(basePath string) (err error) {
 // DownloadURLfromTags : Retrieve a URL for a distribution based on a version
 func DownloadURLfromTags(filepath string) (image string, err error) {
 	var constructedURL string
+	var versions, images []string
+
 	for _, avalaibleMirror := range distribution.Architectures[buildarch] {
 		if strings.Contains(avalaibleMirror, "{VERSION}") {
 			constructedURL = strings.Split(avalaibleMirror, "/{VERSION}")[0]
-			regexURL := WalkURL(constructedURL, "(?m)^([[:digit:]]{1,3}.[[:digit:]]+|[[:digit:]]+)(?:/)")
+			versionBody := WalkURL(constructedURL)
 
-			version, err := CliSelector("Select a version: ", regexURL)
+			search, _ := regexp.Compile(">:?([[:digit:]]{1,3}.[[:digit:]]+|[[:digit:]]+)(?:/)")
+			match := search.FindAllStringSubmatch(*versionBody, -1)
+
+			for i := 0; i < len(match); i++ {
+				for _, submatches := range match {
+					versions = append(versions, submatches[1])
+				}
+			}
+
+			version, err := CliSelector("Select a version: ", versions)
 			if err != nil {
 				return "", err
 			}
 
-			constructedURL = strings.Replace(avalaibleMirror, "{VERSION}/", version, 1)
-			regexURL = WalkURL(constructedURL, ".*.raw.xz")
+			constructedURL = strings.Replace(avalaibleMirror, "{VERSION}", version, 1)
+			imageBody := WalkURL(constructedURL)
 
-			if len(regexURL) > 1 {
-				imageFile, err = CliSelector("Select an image file: ", regexURL)
+			search, _ = regexp.Compile(">:?([[:alpha:]]+.*.raw.xz)")
+			imageMatch := search.FindAllStringSubmatch(*imageBody, -1)
+
+			for i := 0; i < len(imageMatch); i++ {
+				for _, submatches := range imageMatch {
+					images = append(images, submatches[1])
+				}
+			}
+
+			if len(images) > 1 {
+				imageFile, err = CliSelector("Select an image file: ", images)
 				if err != nil {
 					return "", err
 				}
 			} else {
-				fmt.Println("Auto selected only avalaible file:", regexURL[0])
-				imageFile = regexURL[0]
+				imageFile = images[0]
 			}
 
 			imageFile = strings.TrimSpace(imageFile)
