@@ -250,12 +250,13 @@ func CreateDisk(name, outDir, format string) (*guestfs.GuestfsError, error) {
 	}
 	defer g.Close()
 
-	// TODO - 1: Create disk
 	size, err := g.Du(outDir)
 	if err != nil {
 		return err, nil
 	}
 	fmt.Println(size)
+
+	// TODO - 1: Create disk
 	// if err := g.Create_disk (name, "raw", size*1024*1024); err != nil {
 	//return err
 	//}
@@ -439,7 +440,8 @@ func PrepareFiles(basePath string) (err error) {
 
 	if _, err := os.Stat(basePath + "/downloadedFiles/" + image[0:strings.LastIndex(image, ".")]); os.IsNotExist(err) {
 		fmt.Println("Extracting:", image, "in: ./tmp")
-		// TODO-2 : Implement correctly extract function
+
+		// TODO-2 : Implement archive extraction
 		if err := archiver.Extract(basePath+"/downloadedFiles/"+image, "", basePath+"/tmp"); err != nil {
 			log.Println(err)
 			return err
@@ -582,10 +584,14 @@ func Factory(distro string, outDir string) (err error) {
 			return err
 		}
 
-		// CreateDisk("", "", "ext4")
+		if isVariant {
+			CreateDisk(variant.Name+".img", basePath, "ext4")
+		} else {
+			CreateDisk(baseName+".img", basePath, "ext4")
+		}
 
 		if hekate {
-			// TODO - 4 : Implement split function and 7z
+			// TODO - 4 : Implement split function and 7z compression
 		}
 	} else {
 		path := [2]string{basePath, "/root/android"}
