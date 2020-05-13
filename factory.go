@@ -250,8 +250,13 @@ func CreateDisk(name, outDir, format string) (*guestfs.GuestfsError, error) {
 	}
 	defer g.Close()
 
-	// TODO - 1: Create disk, use DU to get dir size
-	// if err := g. (name, "raw", 512*1024*1024); err != nil {
+	// TODO - 1: Create disk
+	size, err := g.Du(outDir)
+	if err != nil {
+		return err, nil
+	}
+	fmt.Println(size)
+	// if err := g.Create_disk (name, "raw", size*1024*1024); err != nil {
 	//return err
 	//}
 
