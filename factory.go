@@ -1,4 +1,4 @@
-package main
+package factory
 
 import (
 	"context"
@@ -50,6 +50,8 @@ var (
 	imageFile            string
 	isVariant, isAndroid = false, false
 	hekate, staging      = false, false
+	prepare, configs     = false, false
+	packages, image      = false, false
 
 	dockerImageName = "docker.io/library/ubuntu:18.04"
 	baseJSON, _     = ioutil.ReadFile("./base.json")
@@ -562,8 +564,8 @@ func Factory(distro string, outDir string) (err error) {
 		return err
 	}
 
-	fmt.Println("Building:", distro, "\nInside directory:", basePath)
 	if !isAndroid {
+		fmt.Println("Building:", distro, "\nInside directory:", basePath)
 		path := [2]string{basePath, "/root/" + distro}
 
 		if archi := IsValidArchitecture(); archi == nil {
@@ -572,26 +574,34 @@ func Factory(distro string, outDir string) (err error) {
 		}
 		fmt.Println("Found valid architecture: ", buildarch)
 
-		if err := PrepareFiles(basePath); err != nil {
-			return err
+		if prepare {
+			if err := PrepareFiles(basePath); err != nil {
+				return err
+			}
 		}
 
-		if err := InstallPackagesInChrootEnv(path); err != nil {
-			return err
+		if configs {
+			if err := InstallPackagesInChrootEnv(path); err != nil {
+				return err
+			}
 		}
 
-		if err := ApplyConfigsInChrootEnv(path); err != nil {
-			return err
+		if packages {
+			if err := ApplyConfigsInChrootEnv(path); err != nil {
+				return err
+			}
 		}
 
-		if isVariant {
-			CreateDisk(variant.Name+".img", basePath, "ext4")
-		} else {
-			CreateDisk(baseName+".img", basePath, "ext4")
-		}
+		if image {
+			if isVariant {
+				CreateDisk(variant.Name+".img", basePath, "ext4")
+			} else {
+				CreateDisk(baseName+".img", basePath, "ext4")
+			}
 
-		if hekate {
-			// TODO - 4 : Implement split function and 7z compression
+			if hekate {
+				// TODO - 4 : Implement split function and 7z compression
+			}
 		}
 	} else {
 		path := [2]string{basePath, "/root/android"}
@@ -611,6 +621,10 @@ func main() {
 	flag.StringVar(&buildarch, "arch", "aarch64", "Set the platform build architecture.")
 	flag.Bool("hekate", hekate, "Build an hekate installable filesystem")
 	flag.Bool("staging", staging, "Install built local packages")
+	flag.Bool("prepare", prepare, "Build an hekate installable filesystem")
+	flag.Bool("configs", configs, "Install built local packages")
+	flag.Bool("packages", packages, "Build an hekate installable filesystem")
+	flag.Bool("image", image, "Install built local packages")
 	flag.Parse()
 
 	// Sets default for android build
