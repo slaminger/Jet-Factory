@@ -66,7 +66,10 @@ CreateImage() {
 }
 
 # Actual script
-docker run --rm -ti -v $(dirname "$(readlink -fm $0)"):/root/ jet-factory:latest go run factory.go -prepare $@
-docker run --rm -ti -v $(dirname "$(readlink -fm $0)"):/root/ jet-factory:latest go run factory.go -configs $@
-docker run --rm -ti -v $(dirname "$(readlink -fm $0)"):/root/ jet-factory:latest go run factory.go -packages $@
-docker run --rm -ti -v $(dirname "$(readlink -fm $0)"):/root/ jet-factory:latest go run factory.go -image $@
+# docker image build -t azkali/jet-factory:1.0.0 .
+chmod a+x /root/factory.go
+
+docker run --privileged --rm -ti -v /var/run/docker.sock:/var/run/docker.sock -v "$PWD":/root/ azkali/jet-factory:1.0.0 sh -c "go run /root/factory.go -prepare -distro=${DISTRO}"
+# docker run --privileged --rm -ti -v /var/run/docker.sock:/var/run/docker.sock -v $(dirname "$(readlink -fm $0)"):/root/ azkali/jet-factory:1.0.0 go run factory.go -configs -distro=${DISTRO}
+# docker run --privileged --rm -ti -v /var/run/docker.sock:/var/run/docker.sock -v $(dirname "$(readlink -fm $0)"):/root/ azkali/jet-factory:1.0.0 go run factory.go -packages -distro=${DISTRO}
+# docker run --privileged --rm -ti -v /var/run/docker.sock:/var/run/docker.sock -v $(dirname "$(readlink -fm $0)"):/root/ azkali/jet-factory:1.0.0 go run factory.go -image -distro=${DISTRO}
