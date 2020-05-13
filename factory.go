@@ -1,6 +1,7 @@
-package factory
+package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"flag"
@@ -11,6 +12,8 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -23,6 +26,7 @@ import (
 	"github.com/docker/docker/pkg/stdcopy"
 	strip "github.com/grokify/html-strip-tags-go"
 	"github.com/mholt/archiver/v3"
+	"github.com/xi2/xz"
 )
 
 type (
@@ -49,9 +53,9 @@ var (
 	baseName, buildarch  string
 	imageFile            string
 	isVariant, isAndroid = false, false
-	hekate, staging      = false, false
-	prepare, configs     = false, false
-	packages, image      = false, false
+	hekate, staging      bool
+	prepare, configs     bool
+	packages, image      bool
 
 	dockerImageName = "docker.io/library/ubuntu:18.04"
 	baseJSON, _     = ioutil.ReadFile("./base.json")
@@ -70,16 +74,16 @@ var (
  */
 
 // CliSelector : Select an item in a menu froim cli
-func CliSelector(label string, items []string) (answer *string, err error) {
+func CliSelector(label string, items []string) (answer string, err error) {
 	var inputValue string
 	prompt := &survey.Select{
 		Message: label,
 		Options: items,
 	}
 	if err := survey.AskOne(prompt, &inputValue); err != nil {
-		return nil, err
+		return "", err
 	}
-	return &inputValue, nil
+	return inputValue, nil
 }
 
 /* Net utilities
@@ -232,17 +236,17 @@ func MountImage(imgFile, mountDir string) (*guestfs.GuestfsError, error) {
 		panic("inspect-vm: no operating systems found")
 	}
 
-	var root *string
+	var root string
 	if len(roots) == 1 {
-		root = &roots[0]
+		root = roots[0]
 	} else {
 		root, _ = CliSelector("Select root partition to use:", roots)
-		if root == nil {
+		if root == "" {
 			return err, nil
 		}
 	}
 
-	if err := g.Mount(*root, mountDir); err != nil {
+	if err := g.Mount(root, mountDir); err != nil {
 		return err, nil
 	}
 
@@ -261,12 +265,12 @@ func CreateDisk(name, outDir, format string) (*guestfs.GuestfsError, error) {
 	if err != nil {
 		return err, nil
 	}
-	fmt.Println(size)
 
-	// TODO - 1: Create disk
-	// if err := g.Create_disk (name, "raw", size*1024*1024); err != nil {
-	//return err
-	//}
+	fmt.Println("Estimated size:", size)
+
+	if ret := exec.Command("dd", "of="+outDir+"/"+name+".img", "bs=1", "count=0", "seek="+string(size*1024*1024)+"M"); ret != nil {
+		return err, nil
+	}
 
 	/* Set the trace flag so that we can see each libguestfs call. */
 	g.Set_trace(true)
@@ -330,8 +334,8 @@ func CreateDisk(name, outDir, format string) (*guestfs.GuestfsError, error) {
 	return nil, nil
 }
 
-// CopyToDisk :
-func CopyToDisk(mountedPath, outPath string) (*guestfs.GuestfsError, error) {
+// CopyFromMounted :
+func CopyFromMounted(mountedPath, outPath string) (*guestfs.GuestfsError, error) {
 	g, errno := guestfs.Create()
 	if errno != nil {
 		return nil, errno
@@ -339,6 +343,11 @@ func CopyToDisk(mountedPath, outPath string) (*guestfs.GuestfsError, error) {
 	defer g.Close()
 
 	err := g.Cp_r(mountedPath, outPath)
+	if err != nil {
+		return err, nil
+	}
+
+	err = g.Umount(mountedPath, nil)
 	if err != nil {
 		return err, nil
 	}
@@ -388,7 +397,7 @@ func IsValidArchitecture() (archi *string) {
 func PreChroot(mount [2]string) error {
 	err := SpawnContainer(
 		[]string{
-			"cp", "/usr/bin/qemu-aarch64-static",
+			"cp", "/usr/bin/qemu-" + buildarch + "-static",
 			mount[1] + "/usr/bin",
 
 			"&&", "mount", "--bind",
@@ -411,7 +420,7 @@ func PreChroot(mount [2]string) error {
 func PostChroot(mounted [2]string) error {
 	err := SpawnContainer(
 		[]string{
-			"rm", mounted[1] + "/usr/bin/qemu-aarch64-static",
+			"rm", mounted[1] + "/usr/bin/qemu-" + buildarch + "-static",
 			"&&", "umount", mounted[1],
 			"&&", "mount", mounted[1] + "/boot",
 		},
@@ -424,44 +433,85 @@ func PostChroot(mounted [2]string) error {
 	return nil
 }
 
+// ExtractFiles :
+func ExtractFiles(archivePath, outPath string) (err error) {
+	if strings.Contains(archivePath, ".raw.xz") {
+		data, err := ioutil.ReadFile(archivePath)
+		if err != nil {
+			return err
+		}
+		r, err := xz.NewReader(bytes.NewReader(data), 0)
+		if err != nil {
+			return err
+		}
+
+		outputFile := strings.Split(filepath.Base(archivePath), ".xz")[0]
+		destination, err := os.Create(outPath + "/" + outputFile)
+		if err != nil {
+			return err
+		}
+		defer destination.Close()
+
+		_, err = io.Copy(destination, r)
+		if err != nil {
+			return err
+		}
+
+		err = destination.Sync()
+		if err != nil {
+			return err
+		}
+
+	} else if strings.Contains(archivePath, ".tar") {
+		if err := archiver.Extract(archivePath, "", outPath); err != nil {
+			return err
+		}
+	} else {
+		fmt.Println("Couldn't recognize archive type for:", archivePath)
+		return err
+	}
+	return nil
+}
+
 // PrepareFiles :
 func PrepareFiles(basePath string) (err error) {
-	if err = os.MkdirAll(basePath+"/tmp", os.ModePerm); err != nil {
+	if err = os.MkdirAll(basePath+"/tmp/", os.ModePerm); err != nil {
 		return err
 	}
 
-	if err = os.MkdirAll(basePath+"/downloadedFiles", os.ModePerm); err != nil {
+	if err = os.MkdirAll("./downloadedFiles/", os.ModeDir); err != nil {
 		return err
 	}
 
 	if hekate {
-		if _, err := os.Stat(basePath + "/downloadedFiles/" + hekateZip); os.IsNotExist(err) {
+		if _, err := os.Stat("./downloadedFiles/" + hekateZip); os.IsNotExist(err) {
 			fmt.Println("Downloading:", hekateZip)
-			if err := Wget(hekateURL, basePath+"/downloadedFiles/"+hekateZip); err != nil {
+			if err := Wget(hekateURL, "./downloadedFiles/"+hekateZip); err != nil {
 				return err
 			}
 		}
 	}
 
-	image := *DownloadURLfromTags(basePath + "/downloadedFiles")
+	image, err := DownloadURLfromTags("./downloadedFiles")
+	if err != nil {
+		return err
+	}
 
-	if _, err := os.Stat(basePath + "/downloadedFiles/" + image[0:strings.LastIndex(image, ".")]); os.IsNotExist(err) {
-		fmt.Println("Extracting:", image, "in: ./tmp")
-
-		// TODO-2 : Implement archive extraction
-		if err := archiver.Extract(basePath+"/downloadedFiles/"+image, "", basePath+"/tmp"); err != nil {
+	if _, err := os.Stat(basePath + "/tmp/" + image[0:strings.LastIndex(image, ".")]); os.IsNotExist(err) {
+		fmt.Println("Extracting:", image)
+		if err := ExtractFiles("./downloadedFiles/"+image, basePath+"/tmp"); err != nil {
 			log.Println(err)
 			return err
 		}
 	}
 
-	if strings.Contains(basePath+"/downloadedFiles/"+image, ".raw") {
+	if strings.Contains("./downloadedFiles/"+image, ".raw") {
 		image = image[0:strings.LastIndex(image, ".")]
-		if _, err := MountImage(basePath+"/downloadedFiles/"+image, basePath+"/tmp"); err != nil {
+		if _, err := MountImage(basePath+"/tmp/"+image, basePath+"/tmp/"); err != nil {
 			return err
 		}
 
-		if _, err := CopyToDisk(basePath+"/tmp/*", basePath); err != nil {
+		if _, err := CopyFromMounted(basePath+"/tmp/*", basePath); err != nil {
 			return err
 		}
 	}
@@ -469,44 +519,53 @@ func PrepareFiles(basePath string) (err error) {
 }
 
 // DownloadURLfromTags : Retrieve a URL for a distribution based on a version
-func DownloadURLfromTags(filepath string) (image *string) {
+func DownloadURLfromTags(filepath string) (image string, err error) {
 	var constructedURL string
 	for _, avalaibleMirror := range distribution.Architectures[buildarch] {
-		if strings.Contains(avalaibleMirror, "{VERSION}") || strings.Contains(avalaibleMirror, "{BUILDARCH}") {
+		if strings.Contains(avalaibleMirror, "{VERSION}") {
 			constructedURL = strings.Split(avalaibleMirror, "/{VERSION}")[0]
 			regexURL := WalkURL(constructedURL, "(?m)^([[:digit:]]{1,3}.[[:digit:]]+|[[:digit:]]+)(?:/)")
 
 			version, err := CliSelector("Select a version: ", regexURL)
 			if err != nil {
-				return nil
+				return "", err
 			}
 
-			constructedURL = strings.Replace(avalaibleMirror, "{VERSION}/", *version, 1)
+			constructedURL = strings.Replace(avalaibleMirror, "{VERSION}/", version, 1)
 			regexURL = WalkURL(constructedURL, ".*.raw.xz")
 
-			imageFile, err := CliSelector("Select an image file: ", regexURL)
-			if err != nil {
-				return nil
+			if len(regexURL) > 1 {
+				imageFile, err = CliSelector("Select an image file: ", regexURL)
+				if err != nil {
+					return "", err
+				}
+			} else {
+				fmt.Println("Auto selected only avalaible file:", regexURL[0])
+				imageFile = regexURL[0]
 			}
-			*imageFile = strings.TrimSpace(*imageFile)
-			constructedURL = constructedURL + *imageFile
+
+			imageFile = strings.TrimSpace(imageFile)
+			constructedURL = constructedURL + imageFile
 			image = imageFile
+
 		} else {
 			constructedURL = avalaibleMirror
 		}
 
 		if _, err := url.ParseRequestURI(constructedURL); err != nil {
 			fmt.Println("Couldn't found mirror:", constructedURL)
-			return nil
+			return "", err
 		}
-		if _, err := os.Stat(filepath + "/" + imageFile); os.IsNotExist(err) {
+
+		if _, err := os.Stat(filepath + "/" + image); os.IsNotExist(err) {
 			fmt.Println("Mirror URL selected:", constructedURL)
-			if err := Wget(constructedURL, filepath+"/"+imageFile); err != nil {
-				return nil
+			fmt.Println("Downloading:", image, "in:", filepath)
+			if err := Wget(constructedURL, filepath+"/"+image); err != nil {
+				return "", err
 			}
 		}
 	}
-	return image
+	return image, nil
 }
 
 // ApplyConfigsInChrootEnv : Runs one or multiple command in a chroot environment; Returns nil if successful
@@ -600,8 +659,18 @@ func Factory(distro string, outDir string) (err error) {
 		if image {
 			if isVariant {
 				CreateDisk(variant.Name+".img", basePath, "ext4")
+				if _, err := MountImage(variant.Name+".img", basePath+"/tmp"); err != nil {
+					return err
+				}
 			} else {
 				CreateDisk(baseName+".img", basePath, "ext4")
+				if _, err := MountImage(baseName+".img", basePath+"/tmp"); err != nil {
+					return err
+				}
+			}
+
+			if _, err := CopyFromMounted(basePath+"/tmp/*", basePath); err != nil {
+				return err
 			}
 
 			if hekate {
@@ -624,12 +693,12 @@ func main() {
 	flag.StringVar(&distro, "distro", "", "the distro you want to build: ubuntu, fedora, gentoo, arch(blackarch, arch-bang), lineage(icosa, foster, foster_tab)")
 	flag.StringVar(&basepath, "basepath", ".", "Path to use as Docker storage, can be a mounted external device")
 	flag.StringVar(&buildarch, "arch", "aarch64", "Set the platform build architecture.")
-	flag.Bool("hekate", hekate, "Build an hekate installable filesystem")
-	flag.Bool("staging", staging, "Install built local packages")
-	flag.Bool("prepare", prepare, "Build an hekate installable filesystem")
-	flag.Bool("configs", configs, "Install built local packages")
-	flag.Bool("packages", packages, "Build an hekate installable filesystem")
-	flag.Bool("image", image, "Install built local packages")
+	flag.BoolVar(&hekate, "hekate", false, "Build an hekate installable filesystem")
+	flag.BoolVar(&staging, "staging", false, "Install built local packages")
+	flag.BoolVar(&prepare, "prepare", false, "Build an hekate installable filesystem")
+	flag.BoolVar(&configs, "configs", false, "Install built local packages")
+	flag.BoolVar(&packages, "packages", false, "Build an hekate installable filesystem")
+	flag.BoolVar(&image, "image", false, "Install built local packages")
 	flag.Parse()
 
 	// Sets default for android build
@@ -642,6 +711,8 @@ func main() {
 	if distro == "opensuse" {
 		distro = "leap"
 	}
+
+	log.Println(prepare)
 
 	if distro == "" {
 		flag.Usage()

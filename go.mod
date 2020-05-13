@@ -15,4 +15,5 @@ require (
 	github.com/opencontainers/go-digest v1.0.0-rc1 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	golang.org/x/net v0.0.0-20200506145744-7e3656a0809f // indirect
+	github.com/xi2/xz v0.0.0-20171230120015-48954b6210f8
 )
