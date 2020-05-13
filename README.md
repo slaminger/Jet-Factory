@@ -15,14 +15,6 @@ Options:
   -help               Show this help text
 ```
 
-## Dependencies
-
-**The following steps would consider your host as a Debian/Ubuntu based distribution, adapt if necessary**
-
-```sh
-sudo apt-get install libguestfs-tools
-```
-
 ## Build
 
 ```sh

@@ -1,7 +1,5 @@
 package main
 
-// TODO : Handle Staging packages installation
-
 import (
 	"context"
 	"encoding/json"
@@ -9,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -23,6 +22,7 @@ import (
 	"github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/stdcopy"
 	strip "github.com/grokify/html-strip-tags-go"
+	"github.com/mholt/archiver/v3"
 )
 
 type (
@@ -44,27 +44,23 @@ type (
 )
 
 var (
-	distribution        Distribution
-	variant             Variant
-	baseName, buildarch string
-	imageFile           string
-
-	hekateZip = hekateURL[strings.LastIndex(hekateURL, "/")+1:]
-
+	distribution         Distribution
+	variant              Variant
+	baseName, buildarch  string
+	imageFile            string
 	isVariant, isAndroid = false, false
-	hekate, staging      = "hekate", "staging"
-	dockerImageName      = "docker.io/library/ubuntu:18.04"
+	hekate, staging      = false, false
 
-	baseJSON, _ = ioutil.ReadFile("./setup/base.json")
-	basesDistro = []Distribution{}
-	_           = json.Unmarshal([]byte(baseJSON), &basesDistro)
-)
+	dockerImageName = "docker.io/library/ubuntu:18.04"
+	baseJSON, _     = ioutil.ReadFile("./setup/base.json")
+	basesDistro     = []Distribution{}
+	_               = json.Unmarshal([]byte(baseJSON), &basesDistro)
 
-const (
 	hekateVersion = "5.2.0"
 	nyxVersion    = "0.9.0"
-	hekateURL     = "https://github.com/CTCaer/hekate/releases/download/v${hekate_version}/hekate_ctcaer_${hekate_version}_Nyx_${nyx_version}.zip"
 	hekateBin     = "hekate_ctcaer_" + hekateVersion + ".bin"
+	hekateURL     = "https://github.com/CTCaer/hekate/releases/download/v" + hekateVersion + "/hekate_ctcaer_" + hekateVersion + "_Nyx_" + nyxVersion + ".zip"
+	hekateZip     = hekateURL[strings.LastIndex(hekateURL, "/")+1:]
 )
 
 /* Menu - CLI
@@ -72,14 +68,16 @@ const (
  */
 
 // CliSelector : Select an item in a menu froim cli
-func CliSelector(label string, items []string) string {
+func CliSelector(label string, items []string) (answer *string, err error) {
 	var inputValue string
 	prompt := &survey.Select{
 		Message: label,
 		Options: items,
 	}
-	survey.AskOne(prompt, &inputValue)
-	return inputValue
+	if err := survey.AskOne(prompt, &inputValue); err != nil {
+		return nil, err
+	}
+	return &inputValue, nil
 }
 
 /* Net utilities
@@ -147,12 +145,6 @@ func Wget(url, filepath string) error {
 * Archive extractor
 * Guestfs mount, create disk
  */
-
-// Extractor : Archive extractor, supports : *.tar.*, *.xz, *.gz, *.zip, *.7zip
-func Extractor(archive, path string) error {
-	// TODO : Implement this
-	return nil
-}
 
 // SpawnContainer : Spawns a container based on dockerImageName
 func SpawnContainer(cmd, env []string, volume [2]string) error {
@@ -241,20 +233,9 @@ func MountImage(imgFile, mountDir string) (*guestfs.GuestfsError, error) {
 	var root string
 	if len(roots) == 1 {
 		root = roots[0]
-	} else {
-		root = CliSelector("Select a root partition to mount: ", roots)
 	}
 
 	if err := g.Mount(root, mountDir); err != nil {
-		return err, nil
-	}
-
-	/* Because we wrote to the disk and we want to detect write
-	* errors, call g:shutdown.  You don't need to do this:
-	* g.Close will do it implicitly.
-	 */
-	if err = g.Shutdown(); err != nil {
-		fmt.Sprintf("write to disk failed: %s", err)
 		return err, nil
 	}
 
@@ -262,19 +243,15 @@ func MountImage(imgFile, mountDir string) (*guestfs.GuestfsError, error) {
 }
 
 // CreateDisk :
-func CreateDisk(imgFile, outDir string) (*guestfs.GuestfsError, error) {
-	// TODO-2
-	output := outDir + imgFile
-
+func CreateDisk(name, outDir, format string) (*guestfs.GuestfsError, error) {
 	g, errno := guestfs.Create()
 	if errno != nil {
 		return nil, errno
 	}
 	defer g.Close()
 
-	/* Create a raw-format sparse disk image, 512 MB in size. */
-	// TODO : Create disk, use DU to get dir size
-	// if err := g. (output, "raw", 512*1024*1024); err != nil {
+	// TODO - 1: Create disk, use DU to get dir size
+	// if err := g. (name, "raw", 512*1024*1024); err != nil {
 	//return err
 	//}
 
@@ -288,7 +265,7 @@ func CreateDisk(imgFile, outDir string) (*guestfs.GuestfsError, error) {
 		Readonly_is_set: true,
 		Readonly:        false,
 	}
-	if err := g.Add_drive(output, &optargs); err != nil {
+	if err := g.Add_drive(name, &optargs); err != nil {
 		return err, nil
 	}
 
@@ -327,7 +304,7 @@ func CreateDisk(imgFile, outDir string) (*guestfs.GuestfsError, error) {
 	}
 
 	/* Create a filesystem on the partition. */
-	err = g.Mkfs("ext4", partitions[0], nil)
+	err = g.Mkfs(format, partitions[0], nil)
 	if err != nil {
 		return err, nil
 	}
@@ -336,6 +313,27 @@ func CreateDisk(imgFile, outDir string) (*guestfs.GuestfsError, error) {
 	if err != nil {
 		return err, nil
 	}
+
+	return nil, nil
+}
+
+// CopyToDisk :
+func CopyToDisk(mountedPath, outPath string) (*guestfs.GuestfsError, error) {
+	g, errno := guestfs.Create()
+	if errno != nil {
+		return nil, errno
+	}
+	defer g.Close()
+
+	err := g.Cp_r(mountedPath, outPath)
+	if err != nil {
+		return err, nil
+	}
+
+	if err = g.Shutdown(); err != nil {
+		return err, nil
+	}
+
 	return nil, nil
 }
 
@@ -414,29 +412,42 @@ func PostChroot(mounted [2]string) error {
 }
 
 // PrepareFiles :
-func PrepareFiles(basePath string) error {
-	if err := os.MkdirAll(basePath+"/bootloader", os.ModePerm); err != nil {
-		return err
-	}
-	if err := os.MkdirAll(basePath+"/switchroot/install", os.ModePerm); err != nil {
-		return err
-	}
-	if err := os.MkdirAll(basePath+"/downloadedFiles", os.ModePerm); err != nil {
+func PrepareFiles(basePath string) (err error) {
+	if err = os.MkdirAll(basePath+"/tmp", os.ModePerm); err != nil {
 		return err
 	}
 
-	if err := Wget(hekateURL, basePath+"/downloadedFiles"); err != nil {
+	if err = os.MkdirAll(basePath+"/downloadedFiles", os.ModePerm); err != nil {
 		return err
 	}
 
-	if err := DownloadURLfromTags(basePath + "/downloadedFiles"); err != nil {
-		return err
+	if hekate {
+		if _, err := os.Stat(basePath + "/downloadedFiles/" + hekateZip); os.IsNotExist(err) {
+			fmt.Println("Downloading:", hekateZip)
+			if err := Wget(hekateURL, basePath+"/downloadedFiles/"+hekateZip); err != nil {
+				return err
+			}
+		}
 	}
 
-	if true {
+	image := *DownloadURLfromTags(basePath + "/downloadedFiles")
 
-	} else {
-		if err := Extractor(imageFile, basePath); err != nil {
+	if _, err := os.Stat(basePath + "/downloadedFiles/" + image[0:strings.LastIndex(image, ".")]); os.IsNotExist(err) {
+		fmt.Println("Extracting:", image, "in: ./tmp")
+		// TODO-2 : Implement correctly extract function
+		if err := archiver.Extract(basePath+"/downloadedFiles/"+image, "", basePath+"/tmp"); err != nil {
+			log.Println(err)
+			return err
+		}
+	}
+
+	if strings.Contains(basePath+"/downloadedFiles/"+image, ".raw") {
+		image = image[0:strings.LastIndex(image, ".")]
+		if _, err := MountImage(basePath+"/downloadedFiles/"+image, basePath+"/tmp"); err != nil {
+			return err
+		}
+
+		if _, err := CopyToDisk(basePath+"/tmp/*", basePath); err != nil {
 			return err
 		}
 	}
@@ -444,43 +455,44 @@ func PrepareFiles(basePath string) error {
 }
 
 // DownloadURLfromTags : Retrieve a URL for a distribution based on a version
-func DownloadURLfromTags(filepath string) (err error) {
+func DownloadURLfromTags(filepath string) (image *string) {
 	var constructedURL string
 	for _, avalaibleMirror := range distribution.Architectures[buildarch] {
 		if strings.Contains(avalaibleMirror, "{VERSION}") || strings.Contains(avalaibleMirror, "{BUILDARCH}") {
 			constructedURL = strings.Split(avalaibleMirror, "/{VERSION}")[0]
 			regexURL := WalkURL(constructedURL, "(?m)^([[:digit:]]{1,3}.[[:digit:]]+|[[:digit:]]+)(?:/)")
-			version := CliSelector("Select a version: ", regexURL)
 
-			if version == "" {
-				return err
+			version, err := CliSelector("Select a version: ", regexURL)
+			if err != nil {
+				return nil
 			}
 
-			constructedURL = strings.Replace(avalaibleMirror, "{VERSION}/", version, 1)
+			constructedURL = strings.Replace(avalaibleMirror, "{VERSION}/", *version, 1)
 			regexURL = WalkURL(constructedURL, ".*.raw.xz")
 
-			imageFile = CliSelector("Select an image file: ", regexURL)
-			if imageFile == "" {
-				return err
+			imageFile, err := CliSelector("Select an image file: ", regexURL)
+			if err != nil {
+				return nil
 			}
-
-			constructedURL = constructedURL + imageFile
-
+			*imageFile = strings.TrimSpace(*imageFile)
+			constructedURL = constructedURL + *imageFile
+			image = imageFile
 		} else {
 			constructedURL = avalaibleMirror
 		}
 
 		if _, err := url.ParseRequestURI(constructedURL); err != nil {
 			fmt.Println("Couldn't found mirror:", constructedURL)
-			return err
+			return nil
 		}
-		fmt.Println("Mirror URL selected : ", constructedURL)
-		if err := Wget(constructedURL, filepath); err != nil {
-			return err
+		if _, err := os.Stat(filepath + "/" + imageFile); os.IsNotExist(err) {
+			fmt.Println("Mirror URL selected:", constructedURL)
+			if err := Wget(constructedURL, filepath+"/"+imageFile); err != nil {
+				return nil
+			}
 		}
-		return nil
 	}
-	return nil
+	return image
 }
 
 // ApplyConfigsInChrootEnv : Runs one or multiple command in a chroot environment; Returns nil if successful
@@ -516,7 +528,7 @@ func InstallPackagesInChrootEnv(path [2]string) error {
 		return err
 	}
 
-	// TODO-4
+	// TODO-3 : Handle staging packages
 	if isVariant {
 		if err := SpawnContainer([]string{"arch-chroot", "`/bin/bash /tools/findPackageManager.sh`", strings.Join(variant.Packages, ","), path[1]}, nil, path); err != nil {
 			return err
@@ -565,8 +577,10 @@ func Factory(distro string, outDir string) (err error) {
 			return err
 		}
 
-		if err := SpawnContainer([]string{"/bin/bash", "/tools/createImage.sh", hekate, baseName}, nil, path); err != nil {
-			return err
+		// CreateDisk("", "", "ext4")
+
+		if hekate {
+			// TODO - 4 : Implement split function and 7z
 		}
 	} else {
 		path := [2]string{basePath, "/root/android"}
@@ -584,12 +598,8 @@ func main() {
 	flag.StringVar(&distro, "distro", "", "the distro you want to build: ubuntu, fedora, gentoo, arch(blackarch, arch-bang), lineage(icosa, foster, foster_tab)")
 	flag.StringVar(&basepath, "basepath", ".", "Path to use as Docker storage, can be a mounted external device")
 	flag.StringVar(&buildarch, "arch", "aarch64", "Set the platform build architecture.")
-	if ok := flag.Bool("hekate", false, "Build an hekate installable filesystem"); !*ok {
-		hekate = ""
-	}
-	if ok := flag.Bool("staging", false, "Install built local packages"); !*ok {
-		staging = ""
-	}
+	flag.Bool("hekate", hekate, "Build an hekate installable filesystem")
+	flag.Bool("staging", staging, "Install built local packages")
 	flag.Parse()
 
 	// Sets default for android build
