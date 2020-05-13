@@ -1,36 +1,8 @@
 #!/bin/bash
-### TODO : Port this to Go
-PrepareFiles() {
-	unzip ${hekate_zip} -d ${build_dir}
 
-	if [[ ! -f ${dl_dir}/${img%.*} ]]; then
-		cd ${build_dir}
-		case ${img} in
-			*.tar)       tar xvf "${dl_dir}/${img}"     ;;
-			*.tar.*)     tar xvjf "${dl_dir}/${img}"    ;;
-			*.tbz2)      tar xvjf "${dl_dir}/${img}"    ;;
-			*.tgz)       tar xvzf "${dl_dir}/${img}"    ;;
-			*.lzma)      unlzma "${dl_dir}/${img}"      ;;
-			*.bz2)       bunzip2 "${dl_dir}/${img}"     ;;
-			*.rar)       unrar x -ad "${dl_dir}/${img}" ;;
-			*.gz)        gunzip "${dl_dir}/${img}"      ;;
-			*.zip)       unzip "${dl_dir}/${img}"       ;;
-			*.Z)         uncompress "${dl_dir}/${img}"  ;;
-			*.7z)        7z x "${dl_dir}/${img}"        ;;
-			*.xz)        unxz "${dl_dir}/${img}"        ;;
-		esac
-	fi
-
-	if [[ $(file -b --mime-type "${dl_dir}/${img%.*}") == "application/octet-stream" ]]; then
-		echo "Preparing image file..."
-		sudo guestmount -a "${dl_dir}/${img%.*}" -i "${build_dir}/switchroot/install"
-	fi
-
-	echo "Finishing rootfs preparation..."
-	mv "${build_dir}/${hekate_bin}" "${build_dir}/lib/firmware/reboot_payload.bin"
-	echo -e "/dev/mmcblk0p1	/boot	vfat	rw,relatime	0	2\n" >> "${build_dir}/etc/fstab"
-	# sed -r -i 's/^HOOKS=((.*))$/HOOKS=(\1 resize-rootfs)/' "${build_dir}/etc/mkinitcpio.conf"
-}
+# mv "${build_dir}/${hekate_bin}" "${build_dir}/lib/firmware/reboot_payload.bin"
+# echo -e "/dev/mmcblk0p1	/boot	vfat	rw,relatime	0	2\n" >> "${build_dir}/etc/fstab"
+# sed -r -i 's/^HOOKS=((.*))$/HOOKS=(\1 resize-rootfs)/' "${build_dir}/etc/mkinitcpio.conf"
 
 findPkgManager() {
 	# Source : https://ilhicas.com/2018/08/08/bash-script-to-install-packages-multiple-os.html
@@ -66,10 +38,7 @@ CreateImage() {
 }
 
 # Actual script
-# docker image build -t azkali/jet-factory:1.0.0 .
-chmod a+x /root/factory.go
-
-docker run --privileged --rm -ti -v /var/run/docker.sock:/var/run/docker.sock -v "$PWD":/root/ azkali/jet-factory:1.0.0 sh -c "go run /root/factory.go -prepare -distro=${DISTRO}"
-# docker run --privileged --rm -ti -v /var/run/docker.sock:/var/run/docker.sock -v $(dirname "$(readlink -fm $0)"):/root/ azkali/jet-factory:1.0.0 go run factory.go -configs -distro=${DISTRO}
-# docker run --privileged --rm -ti -v /var/run/docker.sock:/var/run/docker.sock -v $(dirname "$(readlink -fm $0)"):/root/ azkali/jet-factory:1.0.0 go run factory.go -packages -distro=${DISTRO}
-# docker run --privileged --rm -ti -v /var/run/docker.sock:/var/run/docker.sock -v $(dirname "$(readlink -fm $0)"):/root/ azkali/jet-factory:1.0.0 go run factory.go -image -distro=${DISTRO}
+docker run --privileged --rm -ti -v /var/run/docker.sock:/var/run/docker.sock azkali/jet-factory:1.0.0  ./jet-factory -prepare -distro=${DISTRO}
+# docker run --privileged --rm -ti -v /var/run/docker.sock:/var/run/docker.sock azkali/jet-factory:1.0.0 ./jet-factory -configs -distro=${DISTRO}
+# docker run --privileged --rm -ti -v /var/run/docker.sock:/var/run/docker.sock azkali/jet-factory:1.0.0 ./jet-factory -packages -distro=${DISTRO}
+# docker run --privileged --rm -ti -v /var/run/docker.sock:/var/run/docker.sock azkali/jet-factory:1.0.0 ./jet-factory -image -distro=${DISTRO}

@@ -30,7 +30,7 @@ docker image build -t azkali/jet-factory:1.0.0 .
 ```
 
 ```sh
-docker run --privileged --rm -it -v /var/run/docker.sock:/var/run/docker.sock -v "$PWD":/root azkali/jet-factory:1.0.0
+docker run --privileged --rm -it -e DISTRO=fedora -v /var/run/docker.sock:/var/run/docker.sock -v "$PWD":/root azkali/jet-factory:1.0.0
 ```
 
 ## Credits
