@@ -1,5 +1,5 @@
 **/*
-!engine.sh
-!base.json
-!factory.go
+!*.sh
+!*.json
+!*.go
 !go.*
