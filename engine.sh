@@ -2,26 +2,8 @@
 
 # mv "${build_dir}/${hekate_bin}" "${build_dir}/lib/firmware/reboot_payload.bin"
 # echo -e "/dev/mmcblk0p1	/boot	vfat	rw,relatime	0	2\n" >> "${build_dir}/etc/fstab"
+
 # sed -r -i 's/^HOOKS=((.*))$/HOOKS=(\1 resize-rootfs)/' "${build_dir}/etc/mkinitcpio.conf"
-
-findPkgManager() {
-	# Source : https://ilhicas.com/2018/08/08/bash-script-to-install-packages-multiple-os.html
-	declare -A osInfo;
-	osInfo[/etc/debian_version]="apt-get update -y && apt-get install -y"
-	osInfo[/etc/alpine-release]="apk"
-	osInfo[/etc/centos-release]="yum update && yum install"
-	osInfo[/etc/fedora-release]="dnf update && dnf install"
-	osInfo[/etc/arch-release]="pacman -Syu"
-
-	for f in ${!osInfo[@]}
-	do
-		if [[ -f $f ]];then
-			package_manager=${osInfo[$f]}
-		fi
-	done
-
-	echo $package_manager
-}
 
 CreateImage() {
 	size=$(du -hs -BM ${build_dir} | head -n1 | awk '{print int($1/4)*4 + 4 + 512;}')M
