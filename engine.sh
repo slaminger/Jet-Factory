@@ -20,7 +20,7 @@ CreateImage() {
 }
 
 # Actual script
-docker run --privileged --rm -ti -v /var/run/docker.sock:/var/run/docker.sock azkali/jet-factory:1.0.0  ./jet-factory -prepare -distro=${DISTRO}
-# docker run --privileged --rm -ti -v /var/run/docker.sock:/var/run/docker.sock azkali/jet-factory:1.0.0 ./jet-factory -configs -distro=${DISTRO}
-# docker run --privileged --rm -ti -v /var/run/docker.sock:/var/run/docker.sock azkali/jet-factory:1.0.0 ./jet-factory -packages -distro=${DISTRO}
-# docker run --privileged --rm -ti -v /var/run/docker.sock:/var/run/docker.sock azkali/jet-factory:1.0.0 ./jet-factory -image -distro=${DISTRO}
+docker run --privileged --rm -ti -v /var/run/docker.sock:/var/run/docker.sock azkali/jet-factory:1.0.0  ./jetfactory -prepare -distro=${DISTRO}
+# docker run --privileged --rm -ti -v /var/run/docker.sock:/var/run/docker.sock azkali/jet-factory:1.0.0 ./jetfactory -configs -distro=${DISTRO}
+# docker run --privileged --rm -ti -v /var/run/docker.sock:/var/run/docker.sock azkali/jet-factory:1.0.0 ./jetfactory -packages -distro=${DISTRO}
+# docker run --privileged --rm -ti -v /var/run/docker.sock:/var/run/docker.sock azkali/jet-factory:1.0.0 ./jetfactory -image -distro=${DISTRO}

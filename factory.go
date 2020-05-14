@@ -5,7 +5,6 @@ import (
 	"flag"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"net/url"
 	"os"
 	"regexp"
@@ -375,8 +374,6 @@ func main() {
 	if distro == "opensuse" {
 		distro = "leap"
 	}
-
-	log.Println(prepare)
 
 	if distro == "" {
 		flag.Usage()

@@ -10,6 +10,6 @@ WORKDIR /root/
 ADD ./* /root/
 
 RUN chmod a+x ./*.sh
-RUN go build -o jet-factory factory.go
+RUN go build
 
 CMD /root/engine.sh
