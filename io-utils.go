@@ -17,9 +17,7 @@ import (
 )
 
 // MountImage :
-func MountImage(imgFile, mountDir string) (*guestfs.GuestfsError, error) {
-	disk := imgFile
-
+func MountImage(disk, mountDir string) (*guestfs.GuestfsError, error) {
 	g, errno := guestfs.Create()
 	if errno != nil {
 		return nil, errno
@@ -61,6 +59,11 @@ func MountImage(imgFile, mountDir string) (*guestfs.GuestfsError, error) {
 		}
 	}
 
+	mountDir, ok := filepath.Abs(mountDir)
+	if ok != nil {
+		return nil, ok
+	}
+
 	if err := g.Mount(root, mountDir); err != nil {
 		return err, nil
 	}
@@ -69,7 +72,7 @@ func MountImage(imgFile, mountDir string) (*guestfs.GuestfsError, error) {
 }
 
 // CreateDisk :
-func CreateDisk(name, outDir, format string) (*guestfs.GuestfsError, error) {
+func CreateDisk(disk, outDir, format string) (*guestfs.GuestfsError, error) {
 	g, errno := guestfs.Create()
 	if errno != nil {
 		return nil, errno
@@ -83,7 +86,7 @@ func CreateDisk(name, outDir, format string) (*guestfs.GuestfsError, error) {
 
 	fmt.Println("Estimated size:", size)
 
-	if ret := exec.Command("dd", "of="+outDir+"/"+name+".img", "bs=1", "count=0", "seek="+string(size*1024*1024)+"M"); ret != nil {
+	if ret := exec.Command("dd", "of="+outDir+"/"+disk+".img", "bs=1", "count=0", "seek="+string(size*1024*1024)+"M"); ret != nil {
 		return err, nil
 	}
 
@@ -97,7 +100,7 @@ func CreateDisk(name, outDir, format string) (*guestfs.GuestfsError, error) {
 		Readonly_is_set: true,
 		Readonly:        false,
 	}
-	if err := g.Add_drive(name, &optargs); err != nil {
+	if err := g.Add_drive(disk, &optargs); err != nil {
 		return err, nil
 	}
 
@@ -152,19 +155,30 @@ func CreateDisk(name, outDir, format string) (*guestfs.GuestfsError, error) {
 }
 
 // DiskCopy :
-func DiskCopy(src, dst string) (*guestfs.GuestfsError, error) {
+func DiskCopy(disk, dst string) (*guestfs.GuestfsError, error) {
 	g, errno := guestfs.Create()
 	if errno != nil {
 		return nil, errno
 	}
 	defer g.Close()
 
+	/* Attach the disk image to libguestfs. */
+	optargs := guestfs.OptargsAdd_drive{
+		Format_is_set:   true,
+		Format:          "raw",
+		Readonly_is_set: true,
+		Readonly:        false,
+	}
+	if err := g.Add_drive(disk, &optargs); err != nil {
+		return err, nil
+	}
+
 	/* Run the libguestfs back-end. */
 	if err := g.Launch(); err != nil {
 		return err, nil
 	}
 
-	err := g.Cp_r(src, dst)
+	err := g.Cp_r(disk, dst)
 	if err != nil {
 		return err, nil
 	}
@@ -172,19 +186,30 @@ func DiskCopy(src, dst string) (*guestfs.GuestfsError, error) {
 }
 
 // Unmount :
-func Unmount(src string) (*guestfs.GuestfsError, error) {
+func Unmount(disk string) (*guestfs.GuestfsError, error) {
 	g, errno := guestfs.Create()
 	if errno != nil {
 		return nil, errno
 	}
 	defer g.Close()
 
+	/* Attach the disk image to libguestfs. */
+	optargs := guestfs.OptargsAdd_drive{
+		Format_is_set:   true,
+		Format:          "raw",
+		Readonly_is_set: true,
+		Readonly:        false,
+	}
+	if err := g.Add_drive(disk, &optargs); err != nil {
+		return err, nil
+	}
+
 	/* Run the libguestfs back-end. */
 	if err := g.Launch(); err != nil {
 		return err, nil
 	}
 
-	err := g.Umount(src, nil)
+	err := g.Umount(disk, nil)
 	if err != nil {
 		return err, nil
 	}
