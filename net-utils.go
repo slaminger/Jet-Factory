@@ -1,11 +1,16 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"os"
+	"path"
+	"strconv"
+	"time"
 )
 
 /* Net utilities
@@ -35,32 +40,105 @@ func WalkURL(source string) *string {
 	return &body
 }
 
-// Wget : Download a file in given path
-func Wget(url, filepath string) error {
-	// Create the file
-	out, err := os.Create(filepath)
+// PrintDownloadPercent :
+func PrintDownloadPercent(done chan int64, path string, total int64) {
+	var stop bool = false
+
+	for {
+		select {
+		case <-done:
+			stop = true
+		default:
+
+			file, err := os.Open(path)
+			if err != nil {
+				log.Println(err)
+			}
+
+			fi, err := file.Stat()
+			if err != nil {
+				log.Println(err)
+			}
+
+			size := fi.Size()
+
+			if size == 0 {
+				size = 1
+			}
+
+			var percent float64 = float64(size) / float64(total) * 100
+
+			fmt.Printf("%.0f", percent)
+			fmt.Println("%")
+		}
+
+		if stop {
+			break
+		}
+
+		time.Sleep(time.Second)
+	}
+}
+
+// DownloadFile :
+func DownloadFile(url string, dest string) (err error) {
+
+	file := path.Base(url)
+
+	log.Printf("Downloading file %s from %s\n", file, url)
+
+	var path bytes.Buffer
+	path.WriteString(dest)
+	path.WriteString("/")
+	path.WriteString(file)
+
+	start := time.Now()
+
+	out, err := os.Create(path.String())
+
 	if err != nil {
+		fmt.Println(path.String())
 		return err
 	}
+
 	defer out.Close()
 
-	// Get the data
-	resp, err := http.Get(url)
+	headResp, err := http.Head(url)
+
 	if err != nil {
 		return err
 	}
+
+	defer headResp.Body.Close()
+
+	size, err := strconv.Atoi(headResp.Header.Get("Content-Length"))
+
+	if err != nil {
+		return err
+	}
+
+	done := make(chan int64)
+
+	go PrintDownloadPercent(done, path.String(), int64(size))
+
+	resp, err := http.Get(url)
+
+	if err != nil {
+		return err
+	}
+
 	defer resp.Body.Close()
 
-	// Check server response
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("bad status: %s", resp.Status)
-	}
+	n, err := io.Copy(out, resp.Body)
 
-	// Writer the body to file
-	_, err = io.Copy(out, resp.Body)
 	if err != nil {
 		return err
 	}
+
+	done <- n
+
+	elapsed := time.Since(start)
+	log.Printf("Download completed in %s", elapsed)
 
 	return nil
 }
