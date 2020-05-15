@@ -100,15 +100,15 @@ func IsValidArchitecture() (archi *string) {
 
 // PrepareFiles :
 func PrepareFiles(basePath string) (err error) {
-	if err = os.MkdirAll(basePath+"/tmp/", os.ModePerm); err != nil {
+	if err = os.MkdirAll(basePath+"/tmp/", 755); err != nil {
 		return err
 	}
 
-	if err = os.MkdirAll(basePath+"/disk/", os.ModePerm); err != nil {
+	if err = os.MkdirAll(basePath+"/disk/", 755); err != nil {
 		return err
 	}
 
-	if err = os.MkdirAll("./downloadedFiles/", os.ModeDir); err != nil {
+	if err = os.MkdirAll("./downloadedFiles/", 755); err != nil {
 		return err
 	}
 
@@ -134,19 +134,19 @@ func PrepareFiles(basePath string) (err error) {
 		}
 
 		image = image[0:strings.LastIndex(image, ".")]
-		if _, err := MountImage("./downloadedFiles/"+image, basePath+"/tmp/"); err != nil {
+		if _, err := MountImage("./downloadedFiles/"+image, basePath); err != nil {
 			return err
 		}
 
-		if _, err := DiskCopy(basePath+"/tmp/*", basePath); err != nil {
+		if _, err := DiskCopy(basePath+"/*", basePath+"/disk/"); err != nil {
 			return err
 		}
 
-		if _, err := Unmount(basePath + "/tmp/"); err != nil {
+		if _, err := Unmount(basePath); err != nil {
 			return err
 		}
 	} else {
-		if err := ExtractFiles("./downloadedFiles/"+image, basePath+"/tmp"); err != nil {
+		if err := ExtractFiles("./downloadedFiles/"+image, basePath+"/disk"); err != nil {
 			return err
 		}
 	}
@@ -314,17 +314,17 @@ func Factory(distro string, dst string) (err error) {
 
 			if isVariant {
 				CreateDisk(variant.Name+".img", basePath, "ext4")
-				if _, err := MountImage(variant.Name+".img", basePath+"/disk"); err != nil {
+				if _, err := MountImage(variant.Name+".img", basePath+"/tmp"); err != nil {
 					return err
 				}
 			} else {
 				CreateDisk(baseName+".img", basePath, "ext4")
-				if _, err := MountImage(baseName+".img", basePath+"/disk"); err != nil {
+				if _, err := MountImage(baseName+".img", basePath+"/tmp"); err != nil {
 					return err
 				}
 			}
 
-			if _, err := DiskCopy(basePath+"/*", basePath+"/disk/"); err != nil {
+			if _, err := DiskCopy(basePath+"/disk/*", basePath+"/tmp/"); err != nil {
 				return err
 			}
 
@@ -336,7 +336,7 @@ func Factory(distro string, dst string) (err error) {
 
 			}
 
-			if _, err := Unmount(basePath + "/disk/"); err != nil {
+			if _, err := Unmount(basePath + "/tmp/"); err != nil {
 				return err
 			}
 		}
