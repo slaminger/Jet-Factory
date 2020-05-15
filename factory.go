@@ -61,6 +61,13 @@ func DetectPackageManager() (err error) {
 			return nil
 		}
 	}
+	if packageManager == "zypper" {
+		packageManager = packageManager + " up" + packageManager + " in"
+	} else if packageManager == "dnf" || packageManager == "yum" || packageManager == "apt" {
+		packageManager = packageManager + " update" + packageManager + " install"
+	} else if packageManager == "pacman" {
+		packageManager = packageManager + " -Syu"
+	}
 	return err
 }
 
@@ -93,61 +100,6 @@ func IsValidArchitecture() (archi *string) {
 	for archis := range distribution.Architectures {
 		if buildarch == archis {
 			return &buildarch
-		}
-	}
-	return nil
-}
-
-// PrepareFiles :
-func PrepareFiles(basePath string) (err error) {
-	if err = os.MkdirAll(basePath+"/tmp/", 755); err != nil {
-		return err
-	}
-
-	if err = os.MkdirAll(basePath+"/disk/", 755); err != nil {
-		return err
-	}
-
-	if err = os.MkdirAll("./downloadedFiles/", 755); err != nil {
-		return err
-	}
-
-	if hekate {
-		if _, err := os.Stat("./downloadedFiles/" + hekateZip); os.IsNotExist(err) {
-			fmt.Println("Downloading:", hekateZip)
-			if err := Wget(hekateURL, "./downloadedFiles/"+hekateZip); err != nil {
-				return err
-			}
-		}
-	}
-
-	image, err := DownloadURLfromTags("./downloadedFiles")
-	if err != nil {
-		return err
-	}
-
-	if strings.Contains("./downloadedFiles/"+image, ".raw") {
-		if _, err := os.Stat("./downloadedFiles/" + image[0:strings.LastIndex(image, ".")]); os.IsNotExist(err) {
-			if err := ExtractFiles("./downloadedFiles/"+image, "./downloadedFiles/"); err != nil {
-				return err
-			}
-		}
-
-		image = image[0:strings.LastIndex(image, ".")]
-		if _, err := MountImage("./downloadedFiles/"+image, basePath); err != nil {
-			return err
-		}
-
-		if _, err := DiskCopy(basePath+"/*", basePath+"/disk/"); err != nil {
-			return err
-		}
-
-		if _, err := Unmount(basePath); err != nil {
-			return err
-		}
-	} else {
-		if err := ExtractFiles("./downloadedFiles/"+image, basePath+"/disk"); err != nil {
-			return err
 		}
 	}
 	return nil
@@ -212,14 +164,70 @@ func DownloadURLfromTags(dst string) (image string, err error) {
 		}
 
 		if _, err := os.Stat(dst + "/" + image); os.IsNotExist(err) {
-			fmt.Println("Mirror URL selected:", constructedURL)
-			fmt.Println("Downloading:", image, "in:", dst)
-			if err := Wget(constructedURL, dst+"/"+image); err != nil {
+			if err := DownloadFile(constructedURL, dst); err != nil {
 				return "", err
 			}
 		}
 	}
 	return image, nil
+}
+
+// PrepareFiles :
+func PrepareFiles(basePath string) (err error) {
+	if err = os.MkdirAll(basePath+"/tmp/", 755); err != nil {
+		return err
+	}
+
+	if err = os.MkdirAll(basePath+"/disk/", 755); err != nil {
+		return err
+	}
+
+	if err = os.MkdirAll("./downloadedFiles/", 755); err != nil {
+		return err
+	}
+
+	if hekate {
+		if _, err := os.Stat("./downloadedFiles/" + hekateZip); os.IsNotExist(err) {
+			fmt.Println("Downloading:", hekateZip)
+			if err := DownloadFile(hekateURL, "./downloadedFiles/"+hekateZip); err != nil {
+				return err
+			}
+		}
+	}
+
+	image, err := DownloadURLfromTags("./downloadedFiles")
+	if err != nil {
+		return err
+	}
+
+	fmt.Println("Extracting:", image, "in:", basePath+"/disk")
+	if strings.Contains("./downloadedFiles/"+image, ".raw") {
+		if _, err := os.Stat("./downloadedFiles/" + image[0:strings.LastIndex(image, ".")]); os.IsNotExist(err) {
+			if err := ExtractFiles("./downloadedFiles/"+image, "./downloadedFiles/"); err != nil {
+				return err
+			}
+		}
+
+		image = image[0:strings.LastIndex(image, ".")]
+		if _, err := MountImage("./downloadedFiles/"+image, basePath); err != nil {
+			return err
+		}
+
+		if _, err := DiskCopy(basePath+"/*", basePath+"/disk/"); err != nil {
+			return err
+		}
+
+		if _, err := Unmount(basePath); err != nil {
+			return err
+		}
+	} else {
+		if err := ExtractFiles("./downloadedFiles/"+image, basePath+"/disk"); err != nil {
+			return err
+		}
+
+		fmt.Println("Done preparing files!")
+	}
+	return nil
 }
 
 // ApplyConfigsInChrootEnv : Runs one or multiple command in a chroot environment; Returns nil if successful
@@ -255,14 +263,20 @@ func InstallPackagesInChrootEnv(path [2]string) error {
 		return err
 	}
 
-	// TODO-3 : Handle staging packages
-	if isVariant {
-		if err := SpawnContainer([]string{"arch-chroot", "`/bin/bash /tools/findPackageManager.sh`", strings.Join(variant.Packages, ","), path[1]}, nil, path); err != nil {
+	if distribution.Name == "arch" {
+		if err := SpawnContainer([]string{"arch-chroot", "pacman-key --init", "&&", "pacman-key --populate archlinuxarm", path[1]}, nil, path); err != nil {
 			return err
 		}
 	}
 
-	if err := SpawnContainer([]string{"arch-chroot", "`/bin/bash /tools/findPackageManager.sh`", strings.Join(distribution.Packages, ","), path[1]}, nil, path); err != nil {
+	// TODO-3 : Handle staging packages
+	if isVariant {
+		if err := SpawnContainer([]string{"arch-chroot", packageManager, strings.Join(variant.Packages, ","), path[1]}, nil, path); err != nil {
+			return err
+		}
+	}
+
+	if err := SpawnContainer([]string{"arch-chroot", packageManager, strings.Join(distribution.Packages, ","), path[1]}, nil, path); err != nil {
 		return err
 	}
 
