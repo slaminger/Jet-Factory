@@ -195,7 +195,7 @@ func PrepareFiles(basePath string) (err error) {
 		}
 	}
 
-	image, err := DownloadURLfromTags("./downloadedFiles")
+	image, err := DownloadURLfromTags(basePath + "/downloadedFiles")
 	if err != nil {
 		return err
 	}
