@@ -6,6 +6,7 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
+	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -84,9 +85,9 @@ func CreateDisk(disk, outDir, format string) (*guestfs.GuestfsError, error) {
 		return err, nil
 	}
 
-	fmt.Println("Estimated size:", size)
+	fmt.Println("Estimated size:", string(int64(size*1024*1024)/4+4+512)+"M")
 
-	if ret := exec.Command("dd", "of="+outDir+"/"+disk+".img", "bs=1", "count=0", "seek="+string(size*1024*1024)+"M"); ret != nil {
+	if ret := exec.Command("dd", "of="+outDir+"/"+disk+".img", "bs=1", "count=0", "seek="+string(int64(size*1024*1024)/4+4+512)+"M"); ret != nil {
 		return err, nil
 	}
 
@@ -155,7 +156,7 @@ func CreateDisk(disk, outDir, format string) (*guestfs.GuestfsError, error) {
 }
 
 // DiskCopy :
-func DiskCopy(disk, dst string) (*guestfs.GuestfsError, error) {
+func DiskCopy(src, dst string) (*guestfs.GuestfsError, error) {
 	g, errno := guestfs.Create()
 	if errno != nil {
 		return nil, errno
@@ -169,7 +170,7 @@ func DiskCopy(disk, dst string) (*guestfs.GuestfsError, error) {
 		Readonly_is_set: true,
 		Readonly:        false,
 	}
-	if err := g.Add_drive(disk, &optargs); err != nil {
+	if err := g.Add_drive(src, &optargs); err != nil {
 		return err, nil
 	}
 
@@ -178,7 +179,7 @@ func DiskCopy(disk, dst string) (*guestfs.GuestfsError, error) {
 		return err, nil
 	}
 
-	err := g.Cp_r(disk, dst)
+	err := g.Cp_r(src, dst)
 	if err != nil {
 		return err, nil
 	}
@@ -256,6 +257,47 @@ func ExtractFiles(archivePath, dst string) (err error) {
 	} else {
 		fmt.Println("Couldn't recognize archive type for:", archivePath)
 		return err
+	}
+	return nil
+}
+
+// SplitFile :
+func SplitFile(filepath, outpath string, sizeInBytes int64) (err error) {
+	file, err := os.Open(filepath)
+
+	if err != nil {
+		return err
+	}
+
+	defer file.Close()
+
+	fileInfo, _ := file.Stat()
+
+	var fileSize int64 = fileInfo.Size()
+
+	// calculate total number of parts the file will be chunked into
+	totalPartsNum := uint64(math.Ceil(float64(fileSize) / float64(sizeInBytes)))
+
+	fmt.Printf("Splitting to %d pieces.\n", totalPartsNum)
+
+	for i := uint64(0); i < totalPartsNum; i++ {
+
+		partSize := int(math.Min(float64(sizeInBytes), float64(fileSize-int64(i*uint64(sizeInBytes)))))
+		partBuffer := make([]byte, partSize)
+
+		file.Read(partBuffer)
+
+		// write to disk
+		fileName := "l4t.0" + string(i)
+		_, err := os.Create(outpath + "/" + fileName)
+
+		if err != nil {
+			return err
+		}
+
+		// write/save buffer to disk
+		ioutil.WriteFile(outpath+"/"+fileName, partBuffer, os.ModeAppend)
+		fmt.Println("Split to : ", outpath+"/"+fileName)
 	}
 	return nil
 }
