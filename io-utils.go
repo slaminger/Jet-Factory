@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 
 	"github.com/Mirantis/virtlet/pkg/diskimage/guestfs"
 	"github.com/mholt/archiver/v3"
@@ -19,55 +20,6 @@ import (
 
 // MountImage :
 func MountImage(disk, mountDir string) (*guestfs.GuestfsError, error) {
-	g, errno := guestfs.Create()
-	if errno != nil {
-		return nil, errno
-	}
-
-	/* Attach the disk image read-only to libguestfs. */
-	optargs := guestfs.OptargsAdd_drive{
-		Format_is_set:   true,
-		Format:          "raw",
-		Readonly_is_set: true,
-		Readonly:        true,
-	}
-	if err := g.Add_drive(disk, &optargs); err != nil {
-		return err, nil
-	}
-
-	/* Run the libguestfs back-end. */
-	if err := g.Launch(); err != nil {
-		return err, nil
-	}
-
-	/* Ask libguestfs to inspect for operating systems. */
-	roots, err := g.Inspect_os()
-	if err != nil {
-		return err, nil
-	}
-	if len(roots) == 0 {
-		log.Println("inspect-vm: no operating systems found")
-		return err, nil
-	}
-
-	var root string
-	if len(roots) == 1 {
-		root = roots[0]
-	} else {
-		root, _ = CliSelector("Select root partition to use:", roots)
-		if root == "" {
-			return err, nil
-		}
-	}
-
-	mountDir, ok := filepath.Abs(mountDir)
-	if ok != nil {
-		return nil, ok
-	}
-
-	if err := g.Mount(root, mountDir); err != nil {
-		return err, nil
-	}
 
 	return nil, nil
 }
@@ -156,50 +108,18 @@ func CreateDisk(disk, outDir, format string) (*guestfs.GuestfsError, error) {
 }
 
 // DiskCopy :
-func DiskCopy(src, dst string) (*guestfs.GuestfsError, error) {
+func DiskCopy(disk, src, dst string) (*guestfs.GuestfsError, error) {
 	g, errno := guestfs.Create()
 	if errno != nil {
 		return nil, errno
 	}
-	defer g.Close()
 
-	/* Attach the disk image to libguestfs. */
+	/* Attach the disk image read-only to libguestfs. */
 	optargs := guestfs.OptargsAdd_drive{
 		Format_is_set:   true,
 		Format:          "raw",
 		Readonly_is_set: true,
-		Readonly:        false,
-	}
-	if err := g.Add_drive(src, &optargs); err != nil {
-		return err, nil
-	}
-
-	/* Run the libguestfs back-end. */
-	if err := g.Launch(); err != nil {
-		return err, nil
-	}
-
-	err := g.Cp_r(src, dst)
-	if err != nil {
-		return err, nil
-	}
-	return nil, nil
-}
-
-// Unmount :
-func Unmount(disk string) (*guestfs.GuestfsError, error) {
-	g, errno := guestfs.Create()
-	if errno != nil {
-		return nil, errno
-	}
-	defer g.Close()
-
-	/* Attach the disk image to libguestfs. */
-	optargs := guestfs.OptargsAdd_drive{
-		Format_is_set:   true,
-		Format:          "raw",
-		Readonly_is_set: true,
-		Readonly:        false,
+		Readonly:        true,
 	}
 	if err := g.Add_drive(disk, &optargs); err != nil {
 		return err, nil
@@ -210,8 +130,46 @@ func Unmount(disk string) (*guestfs.GuestfsError, error) {
 		return err, nil
 	}
 
-	err := g.Umount(disk, nil)
+	/* Ask libguestfs to inspect for operating systems. */
+	roots, err := g.Inspect_os()
 	if err != nil {
+		return err, nil
+	}
+	if len(roots) == 0 {
+		log.Println("inspect-vm: no operating systems found")
+		return err, nil
+	}
+
+	var root string
+	if len(roots) == 1 {
+		root = roots[0]
+	} else {
+		root, _ = CliSelector("Select root partition to use:", roots)
+		if root == "" {
+			return err, nil
+		}
+	}
+
+	if err := g.Mount(root, "/"); err != nil {
+		return err, nil
+	}
+
+	if err := g.Mount_local("/mnt/", nil); err != nil {
+		return err, nil
+	}
+
+	content, ok := WalkPath(src)
+	if ok != nil {
+		return nil, ok
+	}
+
+	for _, dirs := range content {
+		if err := CopyDirectory(dirs, dst); err != nil {
+			return nil, err
+		}
+	}
+
+	if err := g.Umount("/mnt/", nil); err != nil {
 		return err, nil
 	}
 
@@ -250,7 +208,7 @@ func ExtractFiles(archivePath, dst string) (err error) {
 			return err
 		}
 
-	} else if strings.Contains(archivePath, ".tar") {
+	} else if strings.Contains(archivePath, ".tar") || strings.Contains(archivePath, ".zip") || strings.Contains(archivePath, ".rar") {
 		if err := archiver.Extract(archivePath, "", dst); err != nil {
 			return err
 		}
@@ -300,4 +258,127 @@ func SplitFile(filepath, outpath string, sizeInBytes int64) (err error) {
 		fmt.Println("Split to : ", outpath+"/"+fileName)
 	}
 	return nil
+}
+
+// CopyDirectory :
+func CopyDirectory(scrDir, dest string) error {
+	entries, err := ioutil.ReadDir(scrDir)
+	if err != nil {
+		return err
+	}
+	for _, entry := range entries {
+		sourcePath := filepath.Join(scrDir, entry.Name())
+		destPath := filepath.Join(dest, entry.Name())
+
+		fileInfo, err := os.Stat(sourcePath)
+		if err != nil {
+			return err
+		}
+
+		stat, ok := fileInfo.Sys().(*syscall.Stat_t)
+		if !ok {
+			return fmt.Errorf("failed to get raw syscall.Stat_t data for '%s'", sourcePath)
+		}
+
+		switch fileInfo.Mode() & os.ModeType {
+		case os.ModeDir:
+			if err := CreateIfNotExists(destPath, 0755); err != nil {
+				return err
+			}
+			if err := CopyDirectory(sourcePath, destPath); err != nil {
+				return err
+			}
+		case os.ModeSymlink:
+			if err := CopySymLink(sourcePath, destPath); err != nil {
+				return err
+			}
+		default:
+			if err := Copy(sourcePath, destPath); err != nil {
+				return err
+			}
+		}
+
+		if err := os.Lchown(destPath, int(stat.Uid), int(stat.Gid)); err != nil {
+			return err
+		}
+
+		isSymlink := entry.Mode()&os.ModeSymlink != 0
+		if !isSymlink {
+			if err := os.Chmod(destPath, entry.Mode()); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// Copy :
+func Copy(srcFile, dstFile string) error {
+	out, err := os.Create(dstFile)
+	if err != nil {
+		return err
+	}
+
+	defer out.Close()
+
+	in, err := os.Open(srcFile)
+	defer in.Close()
+	if err != nil {
+		return err
+	}
+
+	_, err = io.Copy(out, in)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// Exists :
+func Exists(filePath string) bool {
+	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+		return false
+	}
+
+	return true
+}
+
+// CreateIfNotExists :
+func CreateIfNotExists(dir string, perm os.FileMode) error {
+	if Exists(dir) {
+		return nil
+	}
+
+	if err := os.MkdirAll(dir, perm); err != nil {
+		return fmt.Errorf("failed to create directory: '%s', error: '%s'", dir, err.Error())
+	}
+
+	return nil
+}
+
+// CopySymLink :
+func CopySymLink(source, dest string) error {
+	link, err := os.Readlink(source)
+	if err != nil {
+		return err
+	}
+	return os.Symlink(link, dest)
+}
+
+// WalkPath :
+func WalkPath(root string) ([]string, error) {
+	var files []string
+
+	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+		files = append(files, path)
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	for _, file := range files {
+		fmt.Println(file)
+	}
+	return files, nil
 }

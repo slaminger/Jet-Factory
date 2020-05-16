@@ -9,6 +9,8 @@ import (
 	"os"
 	"regexp"
 	"strings"
+
+	"github.com/mholt/archiver/v3"
 )
 
 type (
@@ -30,21 +32,23 @@ type (
 )
 
 var (
-	distribution              Distribution
-	variant                   Variant
+	distribution Distribution
+	variant      Variant
+
 	baseName, buildarch       string
 	imageFile, packageManager string
-	isVariant, isAndroid      = false, false
-	hekate, staging           bool
-	prepare, configs          bool
-	packages, image           bool
 
-	managerList = []string{"zypper", "dnf", "yum", "pacman", "apt"}
+	isVariant, isAndroid = false, false
+	hekate, staging      bool
+	prepare, configs     bool
+	packages, image      bool
 
-	dockerImageName = "docker.io/library/ubuntu:18.04"
-	baseJSON, _     = ioutil.ReadFile("./base.json")
-	basesDistro     = []Distribution{}
-	_               = json.Unmarshal([]byte(baseJSON), &basesDistro)
+	managerList     = []string{"zypper", "dnf", "yum", "pacman", "apt"}
+	dockerImageName = "azkali/jet-factory:1.0.0"
+
+	baseJSON, _ = ioutil.ReadFile("./base.json")
+	basesDistro = []Distribution{}
+	_           = json.Unmarshal([]byte(baseJSON), &basesDistro)
 
 	hekateVersion = "5.2.0"
 	nyxVersion    = "0.9.0"
@@ -108,8 +112,6 @@ func IsValidArchitecture() (archi *string) {
 // DownloadURLfromTags : Retrieve a URL for a distribution based on a version
 func DownloadURLfromTags(dst string) (image string, err error) {
 	var constructedURL string
-	var versions, images []string
-
 	for _, avalaibleMirror := range distribution.Architectures[buildarch] {
 		if strings.Contains(avalaibleMirror, "{VERSION}") {
 			constructedURL = strings.Split(avalaibleMirror, "/{VERSION}")[0]
@@ -117,7 +119,11 @@ func DownloadURLfromTags(dst string) (image string, err error) {
 
 			search, _ := regexp.Compile(">:?([[:digit:]]{1,3}.[[:digit:]]+|[[:digit:]]+)(?:/)")
 			match := search.FindAllStringSubmatch(*versionBody, -1)
+			if match == nil {
+				return "", err
+			}
 
+			var versions []string
 			for i := 0; i < len(match); i++ {
 				for _, submatches := range match {
 					versions = append(versions, submatches[1])
@@ -135,6 +141,7 @@ func DownloadURLfromTags(dst string) (image string, err error) {
 			search, _ = regexp.Compile(">:?([[:alpha:]]+.*.raw.xz)")
 			imageMatch := search.FindAllStringSubmatch(*imageBody, -1)
 
+			var images []string
 			for i := 0; i < len(imageMatch); i++ {
 				for _, submatches := range imageMatch {
 					images = append(images, submatches[1])
@@ -174,15 +181,15 @@ func DownloadURLfromTags(dst string) (image string, err error) {
 
 // PrepareFiles :
 func PrepareFiles(basePath string) (err error) {
-	if err = os.MkdirAll(basePath+"/tmp/", os.ModeDir); err != nil {
+	if err = os.MkdirAll(basePath+"/tmp/", 0644); err != nil {
 		return err
 	}
 
-	if err = os.MkdirAll(basePath+"/disk/", os.ModeDir); err != nil {
+	if err = os.MkdirAll(basePath+"/disk/", 0644); err != nil {
 		return err
 	}
 
-	if err = os.MkdirAll(basePath+"/downloadedFiles/", os.ModeDir); err != nil {
+	if err = os.MkdirAll(basePath+"/downloadedFiles/", 0664); err != nil {
 		return err
 	}
 
@@ -209,17 +216,10 @@ func PrepareFiles(basePath string) (err error) {
 		}
 
 		image = image[0:strings.LastIndex(image, ".")]
-		if _, err := MountImage(basePath+"/downloadedFiles/"+image, basePath); err != nil {
+		if _, err := DiskCopy(basePath+"/downloadedFiles/"+image, "/mnt/", basePath+"/disk/"); err != nil {
 			return err
 		}
 
-		if _, err := DiskCopy(basePath+"/*", basePath+"/disk/"); err != nil {
-			return err
-		}
-
-		if _, err := Unmount(basePath); err != nil {
-			return err
-		}
 	} else {
 		if err := ExtractFiles(basePath+"/downloadedFiles/"+image, basePath+"/disk"); err != nil {
 			return err
@@ -269,7 +269,7 @@ func InstallPackagesInChrootEnv(path [2]string) error {
 		}
 	}
 
-	// TODO-3 : Handle staging packages
+	// TODO : Handle staging packages
 	if isVariant {
 		if err := SpawnContainer([]string{"arch-chroot", packageManager, strings.Join(variant.Packages, ","), path[1]}, nil, path); err != nil {
 			return err
@@ -298,7 +298,7 @@ func Factory(distro string, dst string) (err error) {
 
 	if !isAndroid {
 		fmt.Println("Building:", distro, "\nInside directory:", basePath)
-		path := [2]string{basePath, "/root/" + distro}
+		path := [2]string{basePath, "/root/" + distro + "/disk"}
 
 		if archi := IsValidArchitecture(); archi == nil {
 			return err
@@ -327,60 +327,47 @@ func Factory(distro string, dst string) (err error) {
 
 			if isVariant {
 				CreateDisk(variant.Name+".img", basePath, "ext4")
-				if _, err := MountImage(basePath+"/"+variant.Name+".img", basePath+"/tmp"); err != nil {
-					return err
-				}
 				imageFile = variant.Name + ".img"
 			} else {
 				CreateDisk(baseName+".img", basePath, "ext4")
-				if _, err := MountImage(basePath+"/"+baseName+".img", basePath+"/tmp"); err != nil {
-					return err
-				}
 				imageFile = baseName + ".img"
 			}
 
-			if _, err := DiskCopy(basePath+"/disk/*", basePath+"/tmp/"); err != nil {
+			if _, err := DiskCopy(imageFile, basePath+"/disk/", "/mnt/"); err != nil {
 				return err
 			}
 
 			if hekate {
-				if _, err := DiskCopy(basePath+"/tmp/boot/bootloader", basePath); err != nil {
+				if err := ExtractFiles(basePath+"/downloadedFiles/"+hekateZip, basePath); err != nil {
 					return err
 				}
 
-				if _, err := DiskCopy(basePath+"/tmp/boot/switchroot", basePath); err != nil {
+				if _, err := DiskCopy(imageFile, basePath+hekateBin, basePath+"/mnt/lib/firmware/reboot_payload.bin"); err != nil {
 					return err
 				}
 
-				if err := os.RemoveAll(basePath + "/tmp/boot/bootloader"); err != nil {
+				if err := CopyDirectory(basePath+"/disk/boot/bootloader", basePath); err != nil {
 					return err
 				}
 
-				if err := os.RemoveAll(basePath + "/tmp/boot/switchroot"); err != nil {
+				if err := CopyDirectory(basePath+"/disk/boot/switchroot", basePath); err != nil {
 					return err
 				}
 
-				if err := ExtractFiles(basePath+hekateZip, basePath); err != nil {
+				if err := os.RemoveAll(basePath + "/mnt/boot/bootloader"); err != nil {
 					return err
 				}
 
-				if _, err := DiskCopy(basePath+hekateBin, basePath+"/tmp/lib/firmware/reboot_payload.bin"); err != nil {
+				if err := os.RemoveAll(basePath + "/mnt/boot/switchroot"); err != nil {
 					return err
 				}
 
-				if _, err := Unmount(basePath + "/tmp/"); err != nil {
+				if err := SplitFile(basePath+"/"+imageFile, basePath+"/switchroot/install/", 4290772992); err != nil {
 					return err
 				}
 
-				if err := SplitFile(basePath+"/"+imageFile, basePath+"/switchroot/install", 4290772992); err != nil {
-					return err
-				}
-				// TODO - 4 : Implement 7z compression
+				archiver.NewRar()
 
-			} else {
-				if _, err := Unmount(basePath + "/tmp/"); err != nil {
-					return err
-				}
 			}
 		}
 	} else {

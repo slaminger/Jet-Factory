@@ -8,7 +8,6 @@ RUN apt install -y qemu qemu-user-static arch-install-scripts linux-image-generi
 
 WORKDIR /root/
 ADD ./* /root/
-
 RUN chmod a+x ./*.sh
 RUN go build
 
