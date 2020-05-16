@@ -174,22 +174,22 @@ func DownloadURLfromTags(dst string) (image string, err error) {
 
 // PrepareFiles :
 func PrepareFiles(basePath string) (err error) {
-	if err = os.MkdirAll(basePath+"/tmp/", 755); err != nil {
+	if err = os.MkdirAll(basePath+"/tmp/", os.ModeDir); err != nil {
 		return err
 	}
 
-	if err = os.MkdirAll(basePath+"/disk/", 755); err != nil {
+	if err = os.MkdirAll(basePath+"/disk/", os.ModeDir); err != nil {
 		return err
 	}
 
-	if err = os.MkdirAll("./downloadedFiles/", 755); err != nil {
+	if err = os.MkdirAll(basePath+"./downloadedFiles/", os.ModeDir); err != nil {
 		return err
 	}
 
 	if hekate {
-		if _, err := os.Stat("./downloadedFiles/" + hekateZip); os.IsNotExist(err) {
+		if _, err := os.Stat(basePath + "./downloadedFiles/" + hekateZip); os.IsNotExist(err) {
 			fmt.Println("Downloading:", hekateZip)
-			if err := DownloadFile(hekateURL, "./downloadedFiles/"+hekateZip); err != nil {
+			if err := DownloadFile(hekateURL, basePath+"./downloadedFiles/"+hekateZip); err != nil {
 				return err
 			}
 		}
@@ -201,15 +201,15 @@ func PrepareFiles(basePath string) (err error) {
 	}
 
 	fmt.Println("Extracting:", image, "in:", basePath+"/disk")
-	if strings.Contains("./downloadedFiles/"+image, ".raw") {
-		if _, err := os.Stat("./downloadedFiles/" + image[0:strings.LastIndex(image, ".")]); os.IsNotExist(err) {
-			if err := ExtractFiles("./downloadedFiles/"+image, "./downloadedFiles/"); err != nil {
+	if strings.Contains(basePath+"./downloadedFiles/"+image, ".raw") {
+		if _, err := os.Stat(basePath + "./downloadedFiles/" + image[0:strings.LastIndex(image, ".")]); os.IsNotExist(err) {
+			if err := ExtractFiles(basePath+"./downloadedFiles/"+image, basePath+"./downloadedFiles/"); err != nil {
 				return err
 			}
 		}
 
 		image = image[0:strings.LastIndex(image, ".")]
-		if _, err := MountImage("./downloadedFiles/"+image, basePath); err != nil {
+		if _, err := MountImage(basePath+"./downloadedFiles/"+image, basePath); err != nil {
 			return err
 		}
 
@@ -221,7 +221,7 @@ func PrepareFiles(basePath string) (err error) {
 			return err
 		}
 	} else {
-		if err := ExtractFiles("./downloadedFiles/"+image, basePath+"/disk"); err != nil {
+		if err := ExtractFiles(basePath+"./downloadedFiles/"+image, basePath+"/disk"); err != nil {
 			return err
 		}
 
@@ -301,10 +301,8 @@ func Factory(distro string, dst string) (err error) {
 		path := [2]string{basePath, "/root/" + distro}
 
 		if archi := IsValidArchitecture(); archi == nil {
-			fmt.Println(buildarch, "is not a valid architecture !")
 			return err
 		}
-		fmt.Println("Found valid architecture: ", buildarch)
 
 		if prepare {
 			if err := PrepareFiles(basePath); err != nil {
@@ -325,17 +323,20 @@ func Factory(distro string, dst string) (err error) {
 		}
 
 		if image {
+			var imageFile string
 
 			if isVariant {
 				CreateDisk(variant.Name+".img", basePath, "ext4")
-				if _, err := MountImage(variant.Name+".img", basePath+"/tmp"); err != nil {
+				if _, err := MountImage(basePath+"/"+variant.Name+".img", basePath+"/tmp"); err != nil {
 					return err
 				}
+				imageFile = variant.Name + ".img"
 			} else {
 				CreateDisk(baseName+".img", basePath, "ext4")
-				if _, err := MountImage(baseName+".img", basePath+"/tmp"); err != nil {
+				if _, err := MountImage(basePath+"/"+baseName+".img", basePath+"/tmp"); err != nil {
 					return err
 				}
+				imageFile = baseName + ".img"
 			}
 
 			if _, err := DiskCopy(basePath+"/disk/*", basePath+"/tmp/"); err != nil {
@@ -343,15 +344,43 @@ func Factory(distro string, dst string) (err error) {
 			}
 
 			if hekate {
-				// TODO - 4 : Implement split function and 7z compression
-				if _, err := DiskCopy(basePath+"/boot/*", basePath); err != nil {
+				if _, err := DiskCopy(basePath+"/tmp/boot/bootloader", basePath); err != nil {
 					return err
 				}
 
-			}
+				if _, err := DiskCopy(basePath+"/tmp/boot/switchroot", basePath); err != nil {
+					return err
+				}
 
-			if _, err := Unmount(basePath + "/tmp/"); err != nil {
-				return err
+				if err := os.RemoveAll(basePath + "/tmp/boot/bootloader"); err != nil {
+					return err
+				}
+
+				if err := os.RemoveAll(basePath + "/tmp/boot/switchroot"); err != nil {
+					return err
+				}
+
+				if err := ExtractFiles(basePath+hekateZip, basePath); err != nil {
+					return err
+				}
+
+				if _, err := DiskCopy(basePath+hekateBin, basePath+"/tmp/lib/firmware/reboot_payload.bin"); err != nil {
+					return err
+				}
+
+				if _, err := Unmount(basePath + "/tmp/"); err != nil {
+					return err
+				}
+
+				if err := SplitFile(basePath+"/"+imageFile, basePath+"/switchroot/install", 4290772992); err != nil {
+					return err
+				}
+				// TODO - 4 : Implement 7z compression
+
+			} else {
+				if _, err := Unmount(basePath + "/tmp/"); err != nil {
+					return err
+				}
 			}
 		}
 	} else {
