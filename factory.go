@@ -182,14 +182,14 @@ func PrepareFiles(basePath string) (err error) {
 		return err
 	}
 
-	if err = os.MkdirAll(basePath+"./downloadedFiles/", os.ModeDir); err != nil {
+	if err = os.MkdirAll(basePath+"/downloadedFiles/", os.ModeDir); err != nil {
 		return err
 	}
 
 	if hekate {
-		if _, err := os.Stat(basePath + "./downloadedFiles/" + hekateZip); os.IsNotExist(err) {
+		if _, err := os.Stat(basePath + "/downloadedFiles/" + hekateZip); os.IsNotExist(err) {
 			fmt.Println("Downloading:", hekateZip)
-			if err := DownloadFile(hekateURL, basePath+"./downloadedFiles/"+hekateZip); err != nil {
+			if err := DownloadFile(hekateURL, basePath+"/downloadedFiles/"+hekateZip); err != nil {
 				return err
 			}
 		}
@@ -201,15 +201,15 @@ func PrepareFiles(basePath string) (err error) {
 	}
 
 	fmt.Println("Extracting:", image, "in:", basePath+"/disk")
-	if strings.Contains(basePath+"./downloadedFiles/"+image, ".raw") {
-		if _, err := os.Stat(basePath + "./downloadedFiles/" + image[0:strings.LastIndex(image, ".")]); os.IsNotExist(err) {
-			if err := ExtractFiles(basePath+"./downloadedFiles/"+image, basePath+"./downloadedFiles/"); err != nil {
+	if strings.Contains(basePath+"/downloadedFiles/"+image, ".raw") {
+		if _, err := os.Stat(basePath + "/downloadedFiles/" + image[0:strings.LastIndex(image, ".")]); os.IsNotExist(err) {
+			if err := ExtractFiles(basePath+"/downloadedFiles/"+image, basePath+"/downloadedFiles/"); err != nil {
 				return err
 			}
 		}
 
 		image = image[0:strings.LastIndex(image, ".")]
-		if _, err := MountImage(basePath+"./downloadedFiles/"+image, basePath); err != nil {
+		if _, err := MountImage(basePath+"/downloadedFiles/"+image, basePath); err != nil {
 			return err
 		}
 
@@ -221,7 +221,7 @@ func PrepareFiles(basePath string) (err error) {
 			return err
 		}
 	} else {
-		if err := ExtractFiles(basePath+"./downloadedFiles/"+image, basePath+"/disk"); err != nil {
+		if err := ExtractFiles(basePath+"/downloadedFiles/"+image, basePath+"/disk"); err != nil {
 			return err
 		}
 
