@@ -18,12 +18,6 @@ import (
 	"github.com/xi2/xz"
 )
 
-// MountImage :
-func MountImage(disk, mountDir string) (*guestfs.GuestfsError, error) {
-
-	return nil, nil
-}
-
 // CreateDisk :
 func CreateDisk(disk, outDir, format string) (*guestfs.GuestfsError, error) {
 	g, errno := guestfs.Create()
@@ -71,7 +65,7 @@ func CreateDisk(disk, outDir, format string) (*guestfs.GuestfsError, error) {
 		return err, nil
 	}
 	if len(devices) != 1 {
-		log.Println("expected a single device from list-devices")
+		fmt.Println("expected a single device from list-devices")
 		return err, nil
 	}
 
@@ -89,7 +83,7 @@ func CreateDisk(disk, outDir, format string) (*guestfs.GuestfsError, error) {
 		return err, nil
 	}
 	if len(partitions) != 1 {
-		log.Println("expected a single partition from list-partitions")
+		fmt.Println("expected a single partition from list-partitions")
 		return err, nil
 	}
 
@@ -113,7 +107,6 @@ func DiskCopy(disk, src, dst string) (*guestfs.GuestfsError, error) {
 	if errno != nil {
 		return nil, errno
 	}
-
 	/* Attach the disk image read-only to libguestfs. */
 	optargs := guestfs.OptargsAdd_drive{
 		Format_is_set:   true,
@@ -130,13 +123,16 @@ func DiskCopy(disk, src, dst string) (*guestfs.GuestfsError, error) {
 		return err, nil
 	}
 
+	log.Println("Initialized Guestfs")
+
 	/* Ask libguestfs to inspect for operating systems. */
 	roots, err := g.Inspect_os()
 	if err != nil {
 		return err, nil
 	}
+
 	if len(roots) == 0 {
-		log.Println("inspect-vm: no operating systems found")
+		fmt.Println("inspect-vm: no operating systems found")
 		return err, nil
 	}
 
@@ -150,26 +146,43 @@ func DiskCopy(disk, src, dst string) (*guestfs.GuestfsError, error) {
 		}
 	}
 
+	log.Println("Found root partition", root)
+
 	if err := g.Mount(root, "/"); err != nil {
+		log.Println(err)
 		return err, nil
 	}
 
-	if err := g.Mount_local("/mnt/", nil); err != nil {
-		return err, nil
-	}
-
-	content, ok := WalkPath(src)
+	mnt, ok := filepath.Abs("./mnt/")
 	if ok != nil {
 		return nil, ok
 	}
 
+	if err := g.Mkmountpoint(mnt); err != nil {
+		return err, nil
+	}
+
+	if err := g.Mount_loop("/", mnt); err != nil {
+		return err, nil
+	}
+
+	log.Println("Mounted filesystem root in:", mnt)
+
+	content, ok := WalkPath(mnt)
+	if ok != nil {
+		return nil, ok
+	}
+
+	log.Println(content)
+
 	for _, dirs := range content {
-		if err := CopyDirectory(dirs, dst); err != nil {
-			return nil, err
+		log.Println(dirs)
+		if err := g.Cp_r(dirs, dst); err != nil {
+			return err, nil
 		}
 	}
 
-	if err := g.Umount("/mnt/", nil); err != nil {
+	if err := g.Umount("./mnt/", nil); err != nil {
 		return err, nil
 	}
 
@@ -263,9 +276,11 @@ func SplitFile(filepath, outpath string, sizeInBytes int64) (err error) {
 // CopyDirectory :
 func CopyDirectory(scrDir, dest string) error {
 	entries, err := ioutil.ReadDir(scrDir)
+
 	if err != nil {
 		return err
 	}
+
 	for _, entry := range entries {
 		sourcePath := filepath.Join(scrDir, entry.Name())
 		destPath := filepath.Join(dest, entry.Name())
@@ -274,10 +289,9 @@ func CopyDirectory(scrDir, dest string) error {
 		if err != nil {
 			return err
 		}
-
 		stat, ok := fileInfo.Sys().(*syscall.Stat_t)
 		if !ok {
-			return fmt.Errorf("failed to get raw syscall.Stat_t data for '%s'", sourcePath)
+			return err
 		}
 
 		switch fileInfo.Mode() & os.ModeType {
@@ -351,7 +365,7 @@ func CreateIfNotExists(dir string, perm os.FileMode) error {
 	}
 
 	if err := os.MkdirAll(dir, perm); err != nil {
-		return fmt.Errorf("failed to create directory: '%s', error: '%s'", dir, err.Error())
+		return err
 	}
 
 	return nil
@@ -368,7 +382,7 @@ func CopySymLink(source, dest string) error {
 
 // WalkPath :
 func WalkPath(root string) ([]string, error) {
-	var files []string
+	files := make([]string, 0)
 
 	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
 		files = append(files, path)
