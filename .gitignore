@@ -27,3 +27,5 @@
 # Build dirs
 dl/
 build/
+
+.vscode

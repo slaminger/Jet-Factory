@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net/url"
 	"os"
 	"regexp"
@@ -123,7 +124,7 @@ func DownloadURLfromTags(dst string) (image string, err error) {
 				return "", err
 			}
 
-			var versions []string
+			versions := make([]string, 0)
 			for i := 0; i < len(match); i++ {
 				for _, submatches := range match {
 					versions = append(versions, submatches[1])
@@ -132,7 +133,7 @@ func DownloadURLfromTags(dst string) (image string, err error) {
 
 			version, err := CliSelector("Select a version: ", versions)
 			if err != nil {
-				return "", err
+				return "", nil
 			}
 
 			constructedURL = strings.Replace(avalaibleMirror, "{VERSION}", version, 1)
@@ -141,7 +142,7 @@ func DownloadURLfromTags(dst string) (image string, err error) {
 			search, _ = regexp.Compile(">:?([[:alpha:]]+.*.raw.xz)")
 			imageMatch := search.FindAllStringSubmatch(*imageBody, -1)
 
-			var images []string
+			images := make([]string, 0)
 			for i := 0; i < len(imageMatch); i++ {
 				for _, submatches := range imageMatch {
 					images = append(images, submatches[1])
@@ -151,10 +152,13 @@ func DownloadURLfromTags(dst string) (image string, err error) {
 			if len(images) > 1 {
 				imageFile, err = CliSelector("Select an image file: ", images)
 				if err != nil {
+					log.Println(err)
 					return "", err
 				}
-			} else {
+			} else if len(images) == 1 {
 				imageFile = images[0]
+			} else {
+				return "", err
 			}
 
 			imageFile = strings.TrimSpace(imageFile)
@@ -170,10 +174,9 @@ func DownloadURLfromTags(dst string) (image string, err error) {
 			return "", err
 		}
 
-		if _, err := os.Stat(dst + "/" + image); os.IsNotExist(err) {
-			if err := DownloadFile(constructedURL, dst); err != nil {
-				return "", err
-			}
+		err := DownloadFile(constructedURL, dst)
+		if err != nil {
+			return "", err
 		}
 	}
 	return image, nil
@@ -181,47 +184,48 @@ func DownloadURLfromTags(dst string) (image string, err error) {
 
 // PrepareFiles :
 func PrepareFiles(basePath string) (err error) {
-	if err = os.MkdirAll(basePath+"/tmp/", 0644); err != nil {
+	disk := basePath + "/disk/"
+	dlDir := basePath + "/downloadedFiles/"
+
+	if err = os.MkdirAll(disk, 0755); err != nil {
 		return err
 	}
 
-	if err = os.MkdirAll(basePath+"/disk/", 0644); err != nil {
-		return err
-	}
-
-	if err = os.MkdirAll(basePath+"/downloadedFiles/", 0664); err != nil {
+	if err = os.MkdirAll(dlDir, 0755); err != nil {
 		return err
 	}
 
 	if hekate {
-		if _, err := os.Stat(basePath + "/downloadedFiles/" + hekateZip); os.IsNotExist(err) {
+		if _, err := os.Stat(dlDir + hekateZip); os.IsNotExist(err) {
 			fmt.Println("Downloading:", hekateZip)
-			if err := DownloadFile(hekateURL, basePath+"/downloadedFiles/"+hekateZip); err != nil {
+			if err := DownloadFile(hekateURL, dlDir+hekateZip); err != nil {
 				return err
 			}
 		}
+		fmt.Println("Hekate downloaded !")
 	}
 
-	image, err := DownloadURLfromTags(basePath + "/downloadedFiles")
+	image, err := DownloadURLfromTags(dlDir)
 	if err != nil {
 		return err
 	}
 
-	fmt.Println("Extracting:", image, "in:", basePath+"/disk")
-	if strings.Contains(basePath+"/downloadedFiles/"+image, ".raw") {
-		if _, err := os.Stat(basePath + "/downloadedFiles/" + image[0:strings.LastIndex(image, ".")]); os.IsNotExist(err) {
-			if err := ExtractFiles(basePath+"/downloadedFiles/"+image, basePath+"/downloadedFiles/"); err != nil {
-				return err
-			}
+	if strings.Contains(dlDir+image, ".raw") {
+		fmt.Println("Extracting:", image, "in:", dlDir)
+		if err := ExtractFiles(dlDir+image, dlDir); err != nil {
+			return err
 		}
 
+		fmt.Println("File successfully extracted to :", dlDir)
+
 		image = image[0:strings.LastIndex(image, ".")]
-		if _, err := DiskCopy(basePath+"/downloadedFiles/"+image, "/mnt/", basePath+"/disk/"); err != nil {
+		log.Println(image)
+		if _, err := DiskCopy(dlDir+image, "/mnt/", disk); err != nil {
 			return err
 		}
 
 	} else {
-		if err := ExtractFiles(basePath+"/downloadedFiles/"+image, basePath+"/disk"); err != nil {
+		if err := ExtractFiles(dlDir+image, disk); err != nil {
 			return err
 		}
 
@@ -325,6 +329,9 @@ func Factory(distro string, dst string) (err error) {
 		if image {
 			var imageFile string
 
+			disk := basePath + "/disk/"
+			dlDir := basePath + "/downloadedFiles/"
+
 			if isVariant {
 				CreateDisk(variant.Name+".img", basePath, "ext4")
 				imageFile = variant.Name + ".img"
@@ -333,12 +340,12 @@ func Factory(distro string, dst string) (err error) {
 				imageFile = baseName + ".img"
 			}
 
-			if _, err := DiskCopy(imageFile, basePath+"/disk/", "/mnt/"); err != nil {
+			if _, err := DiskCopy(imageFile, disk, "/mnt/"); err != nil {
 				return err
 			}
 
 			if hekate {
-				if err := ExtractFiles(basePath+"/downloadedFiles/"+hekateZip, basePath); err != nil {
+				if err := ExtractFiles(dlDir+hekateZip, basePath); err != nil {
 					return err
 				}
 

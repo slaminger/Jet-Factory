@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"os"
 	"path"
@@ -52,12 +51,12 @@ func PrintDownloadPercent(done chan int64, path string, total int64) {
 
 			file, err := os.Open(path)
 			if err != nil {
-				log.Println(err)
+				fmt.Println(err)
 			}
 
 			fi, err := file.Stat()
 			if err != nil {
-				log.Println(err)
+				fmt.Println(err)
 			}
 
 			size := fi.Size()
@@ -85,7 +84,7 @@ func DownloadFile(url string, dest string) (err error) {
 
 	file := path.Base(url)
 
-	log.Printf("Downloading file %s from %s\n", file, url)
+	fmt.Printf("Downloading file %s from %s\n", file, url)
 
 	var path bytes.Buffer
 	path.WriteString(dest)
@@ -138,7 +137,7 @@ func DownloadFile(url string, dest string) (err error) {
 	done <- n
 
 	elapsed := time.Since(start)
-	log.Printf("Download completed in %s", elapsed)
+	fmt.Printf("Download completed in %s", elapsed)
 
 	return nil
 }
