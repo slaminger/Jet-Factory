@@ -4,6 +4,7 @@
 echo "Type the path to a folder you want to use as storage"
 echo "can be a mounted external HDD"
 
+echo "Press enter..."
 read basepath
 
 if [ ! -d $basepath ] 
@@ -22,6 +23,8 @@ LINEAGE="lineage (defaults to icosa)"
 ICOSA="icosa"
 FOSTER="foster"
 FOSTER_TAB="foster_tab"
+
+docker image build -t azkali/jet-factory:1.0.0 .
 
 select distro in "$ARCH1" "$ARCH2" "$ARCH3" "$FEDORA" "$GENTOO" "$UBUNTU" "$LINEAGE" "$ICOSA" "$FOSTER" "$FOSTER_TAB"
 do

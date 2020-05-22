@@ -102,7 +102,7 @@ func CreateDisk(disk, outDir, format string) (*guestfs.GuestfsError, error) {
 }
 
 // DiskCopy :
-func DiskCopy(disk, src, dst string) (*guestfs.GuestfsError, error) {
+func DiskCopy(disk, dst string) (*guestfs.GuestfsError, error) {
 	g, errno := guestfs.Create()
 	if errno != nil {
 		return nil, errno
@@ -149,40 +149,29 @@ func DiskCopy(disk, src, dst string) (*guestfs.GuestfsError, error) {
 	log.Println("Found root partition", root)
 
 	if err := g.Mount(root, "/"); err != nil {
-		log.Println(err)
 		return err, nil
 	}
 
-	mnt, ok := filepath.Abs("./mnt/")
+	if err := g.Mount_local("/mnt", nil); err != nil {
+		return err, nil
+	}
+
+	go g.Mount_local_run()
+
+	log.Println("Mounted filesystem root")
+
+	dirs, ok := WalkPath("/mnt")
 	if ok != nil {
 		return nil, ok
 	}
 
-	if err := g.Mkmountpoint(mnt); err != nil {
-		return err, nil
-	}
-
-	if err := g.Mount_loop("/", mnt); err != nil {
-		return err, nil
-	}
-
-	log.Println("Mounted filesystem root in:", mnt)
-
-	content, ok := WalkPath(mnt)
-	if ok != nil {
-		return nil, ok
-	}
-
-	log.Println(content)
-
-	for _, dirs := range content {
-		log.Println(dirs)
-		if err := g.Cp_r(dirs, dst); err != nil {
+	for _, dir := range dirs {
+		if err := g.Cp_r(dir, dst); err != nil {
 			return err, nil
 		}
 	}
 
-	if err := g.Umount("./mnt/", nil); err != nil {
+	if err := g.Umount(root, nil); err != nil {
 		return err, nil
 	}
 

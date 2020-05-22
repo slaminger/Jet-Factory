@@ -220,7 +220,7 @@ func PrepareFiles(basePath string) (err error) {
 
 		image = image[0:strings.LastIndex(image, ".")]
 		log.Println(image)
-		if _, err := DiskCopy(dlDir+image, "/mnt/", disk); err != nil {
+		if _, err := DiskCopy(dlDir+image, disk); err != nil {
 			return err
 		}
 
