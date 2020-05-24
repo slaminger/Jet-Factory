@@ -3,7 +3,9 @@ package main
 import (
 	"context"
 	"io"
+	"log"
 	"os"
+	"path/filepath"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
@@ -52,13 +54,15 @@ func PostChroot(mounted string) error {
 
 // SpawnContainer : Spawns a container based on dockerImageName
 func SpawnContainer(cmd, env []string, volume string) error {
+	volume, err := filepath.Abs(volume)
+	if err != nil {
+		return err
+	}
 	ctx := context.Background()
 	cli, err := client.NewClient(client.DefaultDockerHost, client.DefaultVersion, nil, map[string]string{"Content-Type": "application/json"})
 	if err != nil {
 		return err
 	}
-
-	// cli.ImageBuild(ctx)
 
 	reader, err := cli.ImagePull(ctx, dockerImageName, types.ImagePullOptions{})
 	if err != nil {
@@ -73,14 +77,14 @@ func SpawnContainer(cmd, env []string, volume string) error {
 	}, &container.HostConfig{
 		Mounts: []mount.Mount{
 			{
-				Type:   mount.TypeVolume,
+				Type:   mount.TypeBind,
 				Source: volume,
-				Target: "/root/" + distribution.Name,
+				Target: volume,
 			},
 			{
-				Type:   mount.TypeVolume,
-				Source: client.DefaultDockerHost,
-				Target: client.DefaultDockerHost,
+				Type:   mount.TypeBind,
+				Source: "/var/run/docker.sock",
+				Target: "/var/run/docker.sock",
 			},
 		},
 	}, nil, distribution.Name)
@@ -102,5 +106,6 @@ func SpawnContainer(cmd, env []string, volume string) error {
 	}
 
 	stdcopy.StdCopy(os.Stdout, os.Stderr, out)
+	log.Println(out)
 	return nil
 }

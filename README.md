@@ -18,25 +18,17 @@ Options:
 ## Build
 
 ```sh
-git clone https://github.com/Azkali/jet-factory
-```
-
-```sh
-cd jet-factory
-```
-
-```sh
-docker run --cap-add MKNOD --device=/dev/fuse --security-opt apparmor:unconfined --cap-add SYS_ADMIN --privileged --rm -it -e DISTRO=fedora -v /var/run/docker.sock:/var/run/docker.sock azkali/jet-factory:1.0.0
+docker run --cap-add MKNOD --device=/dev/fuse --security-opt apparmor:unconfined --cap-add SYS_ADMIN --privileged --rm -it -e DISTRO=fedora -v /var/run/docker.sock:/var/run/docker.sock alizkan/jet-factory:1.0.0
 ```
 
 ## Credits
 
-### Indirect contributors
+### Special mentions
 
 @GavinDarkglider, @CTCaer, @ByLaws, @ave \
 For their work and contributions.
 
-### Direct contributors
+### Contributors
 
 @Stary2001, @Kitsumi, @parkerlreed, @AD2076, @PabloZaiden \
 For their awesome work, support and contribution to this project

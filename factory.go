@@ -39,7 +39,7 @@ var (
 
 	buildarch       string
 	managerList     = []string{"zypper", "dnf", "yum", "pacman", "apt"}
-	dockerImageName = "docker.io/library/alizkan/jet-factory:1.0.0"
+	dockerImageName = "docker.io/alizkan/jet-factory:1.0.0"
 	hekateVersion   = "5.2.0"
 	nyxVersion      = "0.9.0"
 	hekateBin       = "hekate_ctcaer_" + hekateVersion + ".bin"
@@ -242,7 +242,6 @@ func PrepareFiles(basePath string) (err error) {
 // InstallPackagesInChrootEnv : Installs packages list; Returns nil if successful
 func InstallPackagesInChrootEnv(path string) error {
 	if err := PreChroot(path); err != nil {
-		log.Println("Pre", err)
 		return err
 	}
 
@@ -313,7 +312,6 @@ func Factory(distro string, dst string) (err error) {
 	}
 
 	if !isAndroid {
-		fmt.Println("Building:", distro, "\nInside directory:", basePath)
 		path := "/root/" + distro + "/disk/"
 
 		if archi := IsValidArchitecture(); archi == nil {
