@@ -2,10 +2,10 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"math"
 	"os"
 	"os/exec"
@@ -19,26 +19,23 @@ import (
 )
 
 // CreateDisk :
-func CreateDisk(disk, outDir, format string) (*guestfs.GuestfsError, error) {
+func CreateDisk(disk, src, dst, format string) (*guestfs.GuestfsError, error) {
 	g, errno := guestfs.Create()
 	if errno != nil {
 		return nil, errno
 	}
 	defer g.Close()
 
-	size, err := g.Du(outDir)
-	if err != nil {
-		return err, nil
-	}
-
-	fmt.Println("Estimated size:", string(int64(size*1024*1024)/4+4+512)+"M")
-
-	if ret := exec.Command("dd", "of="+outDir+"/"+disk+".img", "bs=1", "count=0", "seek="+string(int64(size*1024*1024)/4+4+512)+"M"); ret != nil {
-		return err, nil
-	}
-
 	/* Set the trace flag so that we can see each libguestfs call. */
 	g.Set_trace(true)
+
+	size := DirSizeMB(src)
+	fmt.Println("Estimated size:", size, "MB")
+
+	if ret := exec.Command("dd", "of="+dst+"/"+disk+".img", "bs=1", "count=0", "seek="+string(int64(size*1024*1024)/4+4+512)+"M"); ret != nil {
+		err := errors.New("disk image creation failed")
+		return nil, err
+	}
 
 	/* Attach the disk image to libguestfs. */
 	optargs := guestfs.OptargsAdd_drive{
@@ -50,7 +47,6 @@ func CreateDisk(disk, outDir, format string) (*guestfs.GuestfsError, error) {
 	if err := g.Add_drive(disk, &optargs); err != nil {
 		return err, nil
 	}
-
 	/* Run the libguestfs back-end. */
 	if err := g.Launch(); err != nil {
 		return err, nil
@@ -101,8 +97,8 @@ func CreateDisk(disk, outDir, format string) (*guestfs.GuestfsError, error) {
 	return nil, nil
 }
 
-// DiskCopy :
-func DiskCopy(disk, dst string) (*guestfs.GuestfsError, error) {
+// CopyFromDisk :
+func CopyFromDisk(disk, dst string) (*guestfs.GuestfsError, error) {
 	g, errno := guestfs.Create()
 	if errno != nil {
 		return nil, errno
@@ -122,8 +118,6 @@ func DiskCopy(disk, dst string) (*guestfs.GuestfsError, error) {
 	if err := g.Launch(); err != nil {
 		return err, nil
 	}
-
-	log.Println("Initialized Guestfs")
 
 	/* Ask libguestfs to inspect for operating systems. */
 	roots, err := g.Inspect_os()
@@ -146,7 +140,79 @@ func DiskCopy(disk, dst string) (*guestfs.GuestfsError, error) {
 		}
 	}
 
-	log.Println("Found root partition", root)
+	if err := g.Mount(root, "/"); err != nil {
+		return err, nil
+	}
+
+	if err := g.Mount_local("/mnt", nil); err != nil {
+		return err, nil
+	}
+
+	go g.Mount_local_run()
+
+	files, ok := filepath.Glob("/mnt/*")
+	if ok != nil {
+		return nil, ok
+	}
+
+	for _, dir := range files {
+		if err := CopyDirectory(dir, dst); err != nil {
+			return nil, err
+		}
+	}
+
+	if err := g.Umount(root, nil); err != nil {
+		return err, nil
+	}
+
+	if err = g.Shutdown(); err != nil {
+		return err, nil
+	}
+	return nil, nil
+}
+
+// CopyToDisk :
+func CopyToDisk(disk, src string) (*guestfs.GuestfsError, error) {
+	g, errno := guestfs.Create()
+	if errno != nil {
+		return nil, errno
+	}
+	/* Attach the disk image read-only to libguestfs. */
+	optargs := guestfs.OptargsAdd_drive{
+		Format_is_set:   true,
+		Format:          "raw",
+		Readonly_is_set: true,
+		Readonly:        true,
+	}
+	if err := g.Add_drive(disk, &optargs); err != nil {
+		return err, nil
+	}
+
+	/* Run the libguestfs back-end. */
+	if err := g.Launch(); err != nil {
+		return err, nil
+	}
+
+	/* Ask libguestfs to inspect for operating systems. */
+	roots, err := g.Inspect_os()
+	if err != nil {
+		return err, nil
+	}
+
+	if len(roots) == 0 {
+		fmt.Println("inspect-vm: no operating systems found")
+		return err, nil
+	}
+
+	var root string
+	if len(roots) == 1 {
+		root = roots[0]
+	} else {
+		root, _ = CliSelector("Select root partition to use:", roots)
+		if root == "" {
+			return err, nil
+		}
+	}
 
 	if err := g.Mount(root, "/"); err != nil {
 		return err, nil
@@ -158,17 +224,8 @@ func DiskCopy(disk, dst string) (*guestfs.GuestfsError, error) {
 
 	go g.Mount_local_run()
 
-	log.Println("Mounted filesystem root")
-
-	dirs, ok := WalkPath("/mnt")
-	if ok != nil {
-		return nil, ok
-	}
-
-	for _, dir := range dirs {
-		if err := g.Cp_r(dir, dst); err != nil {
-			return err, nil
-		}
+	if err := CopyDirectory(src, "/mnt/"); err != nil {
+		return nil, err
 	}
 
 	if err := g.Umount(root, nil); err != nil {
@@ -211,7 +268,7 @@ func ExtractFiles(archivePath, dst string) (err error) {
 		}
 
 	} else if strings.Contains(archivePath, ".tar") || strings.Contains(archivePath, ".zip") || strings.Contains(archivePath, ".rar") {
-		if err := archiver.Extract(archivePath, "", dst); err != nil {
+		if err := archiver.Unarchive(archivePath, dst); err != nil {
 			return err
 		}
 	} else {
@@ -262,14 +319,31 @@ func SplitFile(filepath, outpath string, sizeInBytes int64) (err error) {
 	return nil
 }
 
+// DirSizeMB :
+func DirSizeMB(path string) float64 {
+	var dirSize int64 = 0
+
+	readSize := func(path string, file os.FileInfo, err error) error {
+		if !file.IsDir() {
+			dirSize += file.Size()
+		}
+
+		return nil
+	}
+
+	filepath.Walk(path, readSize)
+
+	sizeMB := float64(dirSize) / 1024.0 / 1024.0
+
+	return sizeMB
+}
+
 // CopyDirectory :
 func CopyDirectory(scrDir, dest string) error {
 	entries, err := ioutil.ReadDir(scrDir)
-
 	if err != nil {
 		return err
 	}
-
 	for _, entry := range entries {
 		sourcePath := filepath.Join(scrDir, entry.Name())
 		destPath := filepath.Join(dest, entry.Name())
@@ -278,9 +352,10 @@ func CopyDirectory(scrDir, dest string) error {
 		if err != nil {
 			return err
 		}
+
 		stat, ok := fileInfo.Sys().(*syscall.Stat_t)
 		if !ok {
-			return err
+			return fmt.Errorf("failed to get raw syscall.Stat_t data for '%s'", sourcePath)
 		}
 
 		switch fileInfo.Mode() & os.ModeType {
@@ -354,7 +429,7 @@ func CreateIfNotExists(dir string, perm os.FileMode) error {
 	}
 
 	if err := os.MkdirAll(dir, perm); err != nil {
-		return err
+		return fmt.Errorf("failed to create directory: '%s', error: '%s'", dir, err.Error())
 	}
 
 	return nil
@@ -367,21 +442,4 @@ func CopySymLink(source, dest string) error {
 		return err
 	}
 	return os.Symlink(link, dest)
-}
-
-// WalkPath :
-func WalkPath(root string) ([]string, error) {
-	files := make([]string, 0)
-
-	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
-		files = append(files, path)
-		return nil
-	})
-	if err != nil {
-		return nil, err
-	}
-	for _, file := range files {
-		fmt.Println(file)
-	}
-	return files, nil
 }

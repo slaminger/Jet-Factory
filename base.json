@@ -15,10 +15,12 @@
         ],
         "buildarch": {
             "aarch64": [
-                "http://fl.us.archlinuxarm.org/os/ArchLinuxARM-aarch64-latest.tar.gz"
+                "http://de3.mirror.archlinuxarm.org/os/ArchLinuxARM-aarch64-latest.tar.gz"
             ]
         },
-        "configs": [],
+        "configs": [
+            "wget -O - https://raw.githubusercontent.com/Azkali/L4T-Packages-Repository/master/build-stage2-arch.sh | bash"
+        ],
         "packages": [
             "xorg-xrandr",
             "xorg-xinput",
@@ -54,7 +56,9 @@
                 "https://download.fedoraproject.org/pub/fedora/linux/releases/{VERSION}/Server/aarch64/images/"
             ]
         },
-        "configs": [],
+        "configs": [
+            "wget -O - https://raw.githubusercontent.com/Azkali/L4T-Packages-Repository/master/build-stage2-fedora.sh | bash"
+        ],
         "packages": [
             "lightdm",
             "onboard",
