@@ -6,7 +6,6 @@ import (
 	"flag"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"net/url"
 	"os"
 	"regexp"
@@ -251,20 +250,19 @@ func InstallPackagesInChrootEnv(path string) error {
 	}
 
 	if distribution.Name == "arch" {
-		if err := SpawnContainer([]string{"arch-chroot", "pacman-key --init", "&&", "pacman-key --populate archlinuxarm", path}, nil, path); err != nil {
+		if err := SpawnContainer([]string{"arch-chroot", path, "pacman-key --init", "&&", "pacman-key --populate archlinuxarm"}, nil, path); err != nil {
 			return err
 		}
 	}
 
 	// TODO : Handle staging packages
 	if isVariant {
-		if err := SpawnContainer([]string{"arch-chroot", packageManager, strings.Join(variant.Packages, ","), path}, nil, path); err != nil {
+		if err := SpawnContainer([]string{"arch-chroot", path, packageManager, strings.Join(variant.Packages, ",")}, nil, path); err != nil {
 			return err
 		}
 	}
 
-	if err := SpawnContainer([]string{"arch-chroot", packageManager, strings.Join(distribution.Packages, ","), path}, nil, path); err != nil {
-		log.Println("Chroot", err)
+	if err := SpawnContainer([]string{"arch-chroot", path, packageManager, strings.Join(distribution.Packages, ",")}, nil, path); err != nil {
 		return err
 	}
 
@@ -283,14 +281,14 @@ func ApplyConfigsInChrootEnv(path string) error {
 
 	if isVariant {
 		for _, config := range variant.Configs {
-			if err := SpawnContainer([]string{"arch-chroot", config, path}, nil, path); err != nil {
+			if err := SpawnContainer([]string{"arch-chroot", path, config}, nil, path); err != nil {
 				return err
 			}
 		}
 	}
 
 	for _, config := range distribution.Configs {
-		if err := SpawnContainer([]string{"arch-chroot", config, path}, nil, path); err != nil {
+		if err := SpawnContainer([]string{"arch-chroot", path, config}, nil, path); err != nil {
 			return err
 		}
 	}
