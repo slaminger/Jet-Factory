@@ -13,18 +13,16 @@ import (
 )
 
 // PreChroot : Copy qemu-aarch64-static binary and mount bind the directories
-func PreChroot(mount [2]string) error {
-	err := SpawnContainer(
+func PreChroot(mount string) error {
+	err := Copy("/usr/bin/qemu-"+buildarch+"-static", mount+"/usr/bin")
+	err = SpawnContainer(
 		[]string{
-			"cp", "/usr/bin/qemu-" + buildarch + "-static",
-			mount[1] + "/usr/bin",
+			"mount", "--bind",
+			mount, mount,
 
 			"&&", "mount", "--bind",
-			mount[1], mount[1],
-
-			"&&", "mount", "--bind",
-			mount[1] + "/bootloader",
-			mount[1] + "/boot",
+			mount + "/bootloader",
+			mount + "/boot",
 		},
 		nil,
 		mount,
@@ -36,12 +34,12 @@ func PreChroot(mount [2]string) error {
 }
 
 // PostChroot : Remove qemu-aarch64-static binary and unmount the binded directories
-func PostChroot(mounted [2]string) error {
+func PostChroot(mounted string) error {
 	err := SpawnContainer(
 		[]string{
-			"rm", mounted[1] + "/usr/bin/qemu-" + buildarch + "-static",
-			"&&", "umount", mounted[1],
-			"&&", "mount", mounted[1] + "/boot",
+			"rm", mounted + "/usr/bin/qemu-" + buildarch + "-static",
+			"&&", "umount", mounted,
+			"&&", "mount", mounted + "/boot",
 		},
 		nil,
 		mounted,
@@ -53,7 +51,7 @@ func PostChroot(mounted [2]string) error {
 }
 
 // SpawnContainer : Spawns a container based on dockerImageName
-func SpawnContainer(cmd, env []string, volume [2]string) error {
+func SpawnContainer(cmd, env []string, volume string) error {
 	ctx := context.Background()
 	cli, err := client.NewClient(client.DefaultDockerHost, client.DefaultVersion, nil, map[string]string{"Content-Type": "application/json"})
 	if err != nil {
@@ -76,11 +74,16 @@ func SpawnContainer(cmd, env []string, volume [2]string) error {
 		Mounts: []mount.Mount{
 			{
 				Type:   mount.TypeVolume,
-				Source: volume[0],
-				Target: volume[1],
+				Source: volume,
+				Target: "/root/" + distribution.Name,
+			},
+			{
+				Type:   mount.TypeVolume,
+				Source: client.DefaultDockerHost,
+				Target: client.DefaultDockerHost,
 			},
 		},
-	}, nil, baseName)
+	}, nil, distribution.Name)
 	if err != nil {
 		return err
 	}

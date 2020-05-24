@@ -26,10 +26,6 @@ cd jet-factory
 ```
 
 ```sh
-docker image build -t azkali/jet-factory:1.0.0 .
-```
-
-```sh
 docker run --cap-add MKNOD --device=/dev/fuse --security-opt apparmor:unconfined --cap-add SYS_ADMIN --privileged --rm -it -e DISTRO=fedora -v /var/run/docker.sock:/var/run/docker.sock azkali/jet-factory:1.0.0
 ```
 

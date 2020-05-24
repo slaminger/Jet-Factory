@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io/ioutil"
@@ -36,34 +37,29 @@ var (
 	distribution Distribution
 	variant      Variant
 
-	baseName, buildarch       string
-	imageFile, packageManager string
-
-	isVariant, isAndroid = false, false
-	hekate, staging      bool
-	prepare, configs     bool
-	packages, image      bool
-
+	buildarch       string
 	managerList     = []string{"zypper", "dnf", "yum", "pacman", "apt"}
-	dockerImageName = "azkali/jet-factory:1.0.0"
+	dockerImageName = "docker.io/library/alizkan/jet-factory:1.0.0"
+	hekateVersion   = "5.2.0"
+	nyxVersion      = "0.9.0"
+	hekateBin       = "hekate_ctcaer_" + hekateVersion + ".bin"
+	hekateURL       = "https://github.com/CTCaer/hekate/releases/download/v" + hekateVersion + "/hekate_ctcaer_" + hekateVersion + "_Nyx_" + nyxVersion + ".zip"
+	hekateZip       = hekateURL[strings.LastIndex(hekateURL, "/")+1:]
+
+	isVariant, isAndroid     = false, false
+	hekate, staging, prepare bool
+	configs, packages, image bool
 
 	baseJSON, _ = ioutil.ReadFile("./base.json")
 	basesDistro = []Distribution{}
 	_           = json.Unmarshal([]byte(baseJSON), &basesDistro)
-
-	hekateVersion = "5.2.0"
-	nyxVersion    = "0.9.0"
-	hekateBin     = "hekate_ctcaer_" + hekateVersion + ".bin"
-	hekateURL     = "https://github.com/CTCaer/hekate/releases/download/v" + hekateVersion + "/hekate_ctcaer_" + hekateVersion + "_Nyx_" + nyxVersion + ".zip"
-	hekateZip     = hekateURL[strings.LastIndex(hekateURL, "/")+1:]
 )
 
 // DetectPackageManager :
-func DetectPackageManager() (err error) {
+func DetectPackageManager() (packageManager string, err error) {
 	for _, man := range managerList {
 		if _, err := os.Stat("/usr/bin/" + man); os.IsExist(err) {
 			packageManager = man
-			return nil
 		}
 	}
 	if packageManager == "zypper" {
@@ -72,8 +68,10 @@ func DetectPackageManager() (err error) {
 		packageManager = packageManager + " update" + packageManager + " install"
 	} else if packageManager == "pacman" {
 		packageManager = packageManager + " -Syu"
+	} else {
+		return "", errors.New("Can't detect package manager")
 	}
-	return err
+	return packageManager, nil
 }
 
 /* Rootfs Image creation
@@ -85,7 +83,6 @@ func IsDistro(name string) (err error) {
 	// Check if name match a known distribution
 	for i := 0; i < len(basesDistro); i++ {
 		if name == basesDistro[i].Name {
-			baseName = basesDistro[i].Name
 			distribution = Distribution{Name: basesDistro[i].Name, Architectures: basesDistro[i].Architectures, Configs: basesDistro[i].Configs, Packages: basesDistro[i].Packages}
 			return nil
 		}
@@ -110,9 +107,8 @@ func IsValidArchitecture() (archi *string) {
 	return nil
 }
 
-// DownloadURLfromTags : Retrieve a URL for a distribution based on a version
-func DownloadURLfromTags(dst string) (image string, err error) {
-	var constructedURL string
+// SelectVersion : Retrieve a URL for a distribution based on a version
+func SelectVersion() (constructedURL string, err error) {
 	for _, avalaibleMirror := range distribution.Architectures[buildarch] {
 		if strings.Contains(avalaibleMirror, "{VERSION}") {
 			constructedURL = strings.Split(avalaibleMirror, "/{VERSION}")[0]
@@ -121,7 +117,7 @@ func DownloadURLfromTags(dst string) (image string, err error) {
 			search, _ := regexp.Compile(">:?([[:digit:]]{1,3}.[[:digit:]]+|[[:digit:]]+)(?:/)")
 			match := search.FindAllStringSubmatch(*versionBody, -1)
 			if match == nil {
-				return "", err
+				return "", errors.New("Couldn't match regex")
 			}
 
 			versions := make([]string, 0)
@@ -133,15 +129,15 @@ func DownloadURLfromTags(dst string) (image string, err error) {
 
 			version, err := CliSelector("Select a version: ", versions)
 			if err != nil {
-				return "", nil
+				return "", err
 			}
 
 			constructedURL = strings.Replace(avalaibleMirror, "{VERSION}", version, 1)
 			imageBody := WalkURL(constructedURL)
 
+			// TODO : Extend to fit any archive extensions
 			search, _ = regexp.Compile(">:?([[:alpha:]]+.*.raw.xz)")
 			imageMatch := search.FindAllStringSubmatch(*imageBody, -1)
-
 			images := make([]string, 0)
 			for i := 0; i < len(imageMatch); i++ {
 				for _, submatches := range imageMatch {
@@ -149,10 +145,10 @@ func DownloadURLfromTags(dst string) (image string, err error) {
 				}
 			}
 
+			var imageFile string
 			if len(images) > 1 {
 				imageFile, err = CliSelector("Select an image file: ", images)
 				if err != nil {
-					log.Println(err)
 					return "", err
 				}
 			} else if len(images) == 1 {
@@ -163,22 +159,33 @@ func DownloadURLfromTags(dst string) (image string, err error) {
 
 			imageFile = strings.TrimSpace(imageFile)
 			constructedURL = constructedURL + imageFile
-			image = imageFile
 
 		} else {
 			constructedURL = avalaibleMirror
 		}
-
-		if _, err := url.ParseRequestURI(constructedURL); err != nil {
-			fmt.Println("Couldn't found mirror:", constructedURL)
-			return "", err
-		}
-
-		err := DownloadFile(constructedURL, dst)
-		if err != nil {
-			return "", err
-		}
 	}
+	return constructedURL, nil
+}
+
+// DownloadURLfromTags : Retrieve a URL for a distribution based on a version
+func DownloadURLfromTags(dst string) (image string, err error) {
+	constructedURL, err := SelectVersion()
+	if err != nil {
+		return "", err
+	}
+
+	if _, err := url.ParseRequestURI(constructedURL); err != nil {
+		fmt.Println("Couldn't found mirror:", constructedURL)
+		return "", err
+	}
+
+	err = DownloadFile(constructedURL, dst)
+	if err != nil {
+		return "", err
+	}
+
+	parsedURL := strings.Split(constructedURL, "/")
+	image = parsedURL[len(parsedURL)-1]
 	return image, nil
 }
 
@@ -215,43 +222,51 @@ func PrepareFiles(basePath string) (err error) {
 		if err := ExtractFiles(dlDir+image, dlDir); err != nil {
 			return err
 		}
-
 		fmt.Println("File successfully extracted to :", dlDir)
 
 		image = image[0:strings.LastIndex(image, ".")]
-		log.Println(image)
-		if _, err := DiskCopy(dlDir+image, disk); err != nil {
+		if _, err := CopyFromDisk(dlDir+image, disk); err != nil {
 			return err
 		}
 
 	} else {
+		fmt.Println("Extracting:", image, "in:", disk)
 		if err := ExtractFiles(dlDir+image, disk); err != nil {
 			return err
 		}
-
-		fmt.Println("Done preparing files!")
 	}
+	fmt.Println("Done preparing files!")
 	return nil
 }
 
-// ApplyConfigsInChrootEnv : Runs one or multiple command in a chroot environment; Returns nil if successful
-func ApplyConfigsInChrootEnv(path [2]string) error {
+// InstallPackagesInChrootEnv : Installs packages list; Returns nil if successful
+func InstallPackagesInChrootEnv(path string) error {
 	if err := PreChroot(path); err != nil {
+		log.Println("Pre", err)
 		return err
 	}
 
-	if isVariant {
-		for _, config := range variant.Configs {
-			if err := SpawnContainer([]string{"arch-chroot", config, path[1]}, nil, path); err != nil {
-				return err
-			}
+	packageManager, err := DetectPackageManager()
+	if err != nil {
+		return err
+	}
+
+	if distribution.Name == "arch" {
+		if err := SpawnContainer([]string{"arch-chroot", "pacman-key --init", "&&", "pacman-key --populate archlinuxarm", path}, nil, path); err != nil {
+			return err
 		}
 	}
 
-	for _, config := range distribution.Configs {
-		if err := SpawnContainer([]string{"arch-chroot", config, path[1]}, nil, path); err != nil {
+	// TODO : Handle staging packages
+	if isVariant {
+		if err := SpawnContainer([]string{"arch-chroot", packageManager, strings.Join(variant.Packages, ","), path}, nil, path); err != nil {
 			return err
 		}
+	}
+
+	if err := SpawnContainer([]string{"arch-chroot", packageManager, strings.Join(distribution.Packages, ","), path}, nil, path); err != nil {
+		log.Println("Chroot", err)
+		return err
 	}
 
 	if err := PostChroot(path); err != nil {
@@ -261,27 +276,24 @@ func ApplyConfigsInChrootEnv(path [2]string) error {
 	return nil
 }
 
-// InstallPackagesInChrootEnv : Installs packages list; Returns nil if successful
-func InstallPackagesInChrootEnv(path [2]string) error {
+// ApplyConfigsInChrootEnv : Runs one or multiple command in a chroot environment; Returns nil if successful
+func ApplyConfigsInChrootEnv(path string) error {
 	if err := PreChroot(path); err != nil {
 		return err
 	}
 
-	if distribution.Name == "arch" {
-		if err := SpawnContainer([]string{"arch-chroot", "pacman-key --init", "&&", "pacman-key --populate archlinuxarm", path[1]}, nil, path); err != nil {
-			return err
-		}
-	}
-
-	// TODO : Handle staging packages
 	if isVariant {
-		if err := SpawnContainer([]string{"arch-chroot", packageManager, strings.Join(variant.Packages, ","), path[1]}, nil, path); err != nil {
-			return err
+		for _, config := range variant.Configs {
+			if err := SpawnContainer([]string{"arch-chroot", config, path}, nil, path); err != nil {
+				return err
+			}
 		}
 	}
 
-	if err := SpawnContainer([]string{"arch-chroot", packageManager, strings.Join(distribution.Packages, ","), path[1]}, nil, path); err != nil {
-		return err
+	for _, config := range distribution.Configs {
+		if err := SpawnContainer([]string{"arch-chroot", config, path}, nil, path); err != nil {
+			return err
+		}
 	}
 
 	if err := PostChroot(path); err != nil {
@@ -302,7 +314,7 @@ func Factory(distro string, dst string) (err error) {
 
 	if !isAndroid {
 		fmt.Println("Building:", distro, "\nInside directory:", basePath)
-		path := [2]string{basePath, "/root/" + distro + "/disk"}
+		path := "/root/" + distro + "/disk/"
 
 		if archi := IsValidArchitecture(); archi == nil {
 			return err
@@ -333,14 +345,14 @@ func Factory(distro string, dst string) (err error) {
 			dlDir := basePath + "/downloadedFiles/"
 
 			if isVariant {
-				CreateDisk(variant.Name+".img", basePath, "ext4")
+				CreateDisk(variant.Name+".img", disk, basePath, "ext4")
 				imageFile = variant.Name + ".img"
 			} else {
-				CreateDisk(baseName+".img", basePath, "ext4")
-				imageFile = baseName + ".img"
+				CreateDisk(distribution.Name+".img", disk, basePath, "ext4")
+				imageFile = distribution.Name + ".img"
 			}
 
-			if _, err := DiskCopy(imageFile, disk, "/mnt/"); err != nil {
+			if _, err := CopyToDisk(imageFile, disk); err != nil {
 				return err
 			}
 
@@ -349,7 +361,7 @@ func Factory(distro string, dst string) (err error) {
 					return err
 				}
 
-				if _, err := DiskCopy(imageFile, basePath+hekateBin, basePath+"/mnt/lib/firmware/reboot_payload.bin"); err != nil {
+				if err := Copy(basePath+hekateBin, basePath+"/mnt/lib/firmware/reboot_payload.bin"); err != nil {
 					return err
 				}
 
@@ -372,14 +384,12 @@ func Factory(distro string, dst string) (err error) {
 				if err := SplitFile(basePath+"/"+imageFile, basePath+"/switchroot/install/", 4290772992); err != nil {
 					return err
 				}
-
-				archiver.NewRar()
-
+				archiver.Archive([]string{basePath + "/switchroot/", basePath + "/bootloader/"}, basePath+"/"+distro+".rar")
 			}
 		}
 	} else {
-		path := [2]string{basePath, "/root/android"}
-		dockerImageName = "pablozaiden/switchroot-android-build:1.0.0"
+		path := "/root/android"
+		dockerImageName = "docker.io/library/pablozaiden/switchroot-android-build:1.0.0"
 		if err := SpawnContainer(nil, []string{"ROM_NAME=" + distro}, path); err != nil {
 			return err
 		}
