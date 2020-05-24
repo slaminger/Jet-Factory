@@ -27,6 +27,7 @@ FOSTER_TAB="foster_tab"
 
 select distro in "$ARCH1" "$ARCH2" "$ARCH3" "$FEDORA" "$GENTOO" "$UBUNTU" "$LINEAGE" "$ICOSA" "$FOSTER" "$FOSTER_TAB"
 do
+    docker build -t alizkan/jet-factory:1.0.0 .
     case $distro in
         $ARCH1)
             echo -e "building $ARCH1"
