@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"os"
 	"path"
@@ -120,24 +121,32 @@ func DownloadFile(url string, dest string) (err error) {
 
 	go PrintDownloadPercent(done, path.String(), int64(size))
 
-	resp, err := http.Get(url)
-
-	if err != nil {
-		return err
+	var (
+		response *http.Response
+		retries  int = 5
+	)
+	for retries > 0 {
+		response, err = http.Get(url)
+		if err != nil {
+			log.Println(err)
+			retries--
+		} else {
+			break
+		}
 	}
+	if response != nil {
+		defer response.Body.Close()
+		n, err := io.Copy(out, response.Body)
 
-	defer resp.Body.Close()
+		if err != nil {
+			return err
+		}
 
-	n, err := io.Copy(out, resp.Body)
+		done <- n
 
-	if err != nil {
-		return err
+		elapsed := time.Since(start)
+		fmt.Printf("Download completed in %s", elapsed)
 	}
-
-	done <- n
-
-	elapsed := time.Since(start)
-	fmt.Printf("Download completed in %s", elapsed)
 
 	return nil
 }

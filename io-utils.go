@@ -1,25 +1,31 @@
 package main
 
 import (
-	"bytes"
-	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
 	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
+	"strconv"
 	"syscall"
+	"time"
 
 	"github.com/Mirantis/virtlet/pkg/diskimage/guestfs"
-	"github.com/mholt/archiver/v3"
-	"github.com/xi2/xz"
 )
 
 // CreateDisk :
 func CreateDisk(disk, src, dst, format string) (*guestfs.GuestfsError, error) {
+	size := DirSizeMB(src)
+	rootSize := strconv.Itoa(int(size) + 256)
+	fmt.Println("Estimated size:", rootSize, "MB")
+
+	if err := ExecWrapper("dd", "of="+dst+"/"+disk+".img", "bs=1", "count=0", "seek="+rootSize+"M"); err != nil {
+		return nil, err
+	}
+
 	g, errno := guestfs.Create()
 	if errno != nil {
 		return nil, errno
@@ -28,14 +34,6 @@ func CreateDisk(disk, src, dst, format string) (*guestfs.GuestfsError, error) {
 
 	/* Set the trace flag so that we can see each libguestfs call. */
 	g.Set_trace(true)
-
-	size := DirSizeMB(src)
-	fmt.Println("Estimated size:", size, "MB")
-
-	if ret := exec.Command("dd", "of="+dst+"/"+disk+".img", "bs=1", "count=0", "seek="+string(int64(size*1024*1024)/4+4+512)+"M"); ret != nil {
-		err := errors.New("disk image creation failed")
-		return nil, err
-	}
 
 	/* Attach the disk image to libguestfs. */
 	optargs := guestfs.OptargsAdd_drive{
@@ -61,7 +59,7 @@ func CreateDisk(disk, src, dst, format string) (*guestfs.GuestfsError, error) {
 		return err, nil
 	}
 	if len(devices) != 1 {
-		fmt.Println("expected a single device from list-devices")
+		fmt.Println("\nexpected a single device from list-devices")
 		return err, nil
 	}
 
@@ -79,13 +77,17 @@ func CreateDisk(disk, src, dst, format string) (*guestfs.GuestfsError, error) {
 		return err, nil
 	}
 	if len(partitions) != 1 {
-		fmt.Println("expected a single partition from list-partitions")
+		fmt.Println("\nexpected a single partition from list-partitions")
 		return err, nil
 	}
 
 	/* Create a filesystem on the partition. */
 	err = g.Mkfs(format, partitions[0], nil)
 	if err != nil {
+		return err, nil
+	}
+
+	if err = g.Shutdown(); err != nil {
 		return err, nil
 	}
 
@@ -126,7 +128,7 @@ func CopyFromDisk(disk, dst string) (*guestfs.GuestfsError, error) {
 	}
 
 	if len(roots) == 0 {
-		fmt.Println("inspect-vm: no operating systems found")
+		fmt.Println("\ninspect-vm: no operating systems found")
 		return err, nil
 	}
 
@@ -148,7 +150,9 @@ func CopyFromDisk(disk, dst string) (*guestfs.GuestfsError, error) {
 		return err, nil
 	}
 
-	go g.Mount_local_run()
+	if err := g.Mount_local_run(); err != nil {
+		return err, nil
+	}
 
 	files, ok := filepath.Glob("/mnt/*")
 	if ok != nil {
@@ -156,8 +160,9 @@ func CopyFromDisk(disk, dst string) (*guestfs.GuestfsError, error) {
 	}
 
 	for _, dir := range files {
+		log.Println(dir)
 		if err := CopyDirectory(dir, dst); err != nil {
-			return nil, err
+			log.Println(err)
 		}
 	}
 
@@ -168,6 +173,12 @@ func CopyFromDisk(disk, dst string) (*guestfs.GuestfsError, error) {
 	if err = g.Shutdown(); err != nil {
 		return err, nil
 	}
+
+	if err := g.Close(); err != nil {
+		return err, nil
+	}
+
+	fmt.Println("\nFinished copying files and folders")
 	return nil, nil
 }
 
@@ -200,7 +211,7 @@ func CopyToDisk(disk, src string) (*guestfs.GuestfsError, error) {
 	}
 
 	if len(roots) == 0 {
-		fmt.Println("inspect-vm: no operating systems found")
+		fmt.Println("\ninspect-vm: no operating systems found")
 		return err, nil
 	}
 
@@ -222,7 +233,9 @@ func CopyToDisk(disk, src string) (*guestfs.GuestfsError, error) {
 		return err, nil
 	}
 
-	go g.Mount_local_run()
+	if err := g.Mount_local_run(); err != nil {
+		return err, nil
+	}
 
 	if err := CopyDirectory(src, "/mnt/"); err != nil {
 		return nil, err
@@ -235,47 +248,12 @@ func CopyToDisk(disk, src string) (*guestfs.GuestfsError, error) {
 	if err = g.Shutdown(); err != nil {
 		return err, nil
 	}
-	return nil, nil
-}
 
-// ExtractFiles :
-func ExtractFiles(archivePath, dst string) (err error) {
-	if strings.Contains(archivePath, ".raw.xz") {
-		data, err := ioutil.ReadFile(archivePath)
-		if err != nil {
-			return err
-		}
-		r, err := xz.NewReader(bytes.NewReader(data), 0)
-		if err != nil {
-			return err
-		}
-
-		outputFile := strings.Split(filepath.Base(archivePath), ".xz")[0]
-		destination, err := os.Create(dst + "/" + outputFile)
-		if err != nil {
-			return err
-		}
-		defer destination.Close()
-
-		_, err = io.Copy(destination, r)
-		if err != nil {
-			return err
-		}
-
-		err = destination.Sync()
-		if err != nil {
-			return err
-		}
-
-	} else if strings.Contains(archivePath, ".tar") || strings.Contains(archivePath, ".zip") || strings.Contains(archivePath, ".rar") {
-		if err := archiver.Unarchive(archivePath, dst); err != nil {
-			return err
-		}
-	} else {
-		fmt.Println("Couldn't recognize archive type for:", archivePath)
-		return err
+	if err := g.Close(); err != nil {
+		return err, nil
 	}
-	return nil
+	fmt.Println("\nFinished copying files and folders")
+	return nil, nil
 }
 
 // SplitFile :
@@ -295,7 +273,7 @@ func SplitFile(filepath, outpath string, sizeInBytes int64) (err error) {
 	// calculate total number of parts the file will be chunked into
 	totalPartsNum := uint64(math.Ceil(float64(fileSize) / float64(sizeInBytes)))
 
-	fmt.Printf("Splitting to %d pieces.\n", totalPartsNum)
+	fmt.Printf("\nSplitting to %d pieces.\n", totalPartsNum)
 
 	for i := uint64(0); i < totalPartsNum; i++ {
 
@@ -314,7 +292,7 @@ func SplitFile(filepath, outpath string, sizeInBytes int64) (err error) {
 
 		// write/save buffer to disk
 		ioutil.WriteFile(outpath+"/"+fileName, partBuffer, os.ModeAppend)
-		fmt.Println("Split to : ", outpath+"/"+fileName)
+		fmt.Println("\nSplit to : ", outpath+"/"+fileName)
 	}
 	return nil
 }
@@ -350,12 +328,12 @@ func CopyDirectory(scrDir, dest string) error {
 
 		fileInfo, err := os.Stat(sourcePath)
 		if err != nil {
-			return err
+			return nil
 		}
 
 		stat, ok := fileInfo.Sys().(*syscall.Stat_t)
 		if !ok {
-			return fmt.Errorf("failed to get raw syscall.Stat_t data for '%s'", sourcePath)
+			return fmt.Errorf("Failed to get raw syscall.Stat_t data for '%s'", sourcePath)
 		}
 
 		switch fileInfo.Mode() & os.ModeType {
@@ -372,7 +350,8 @@ func CopyDirectory(scrDir, dest string) error {
 			}
 		default:
 			if err := Copy(sourcePath, destPath); err != nil {
-				return err
+				log.Println(err)
+				return nil
 			}
 		}
 
@@ -429,7 +408,7 @@ func CreateIfNotExists(dir string, perm os.FileMode) error {
 	}
 
 	if err := os.MkdirAll(dir, perm); err != nil {
-		return fmt.Errorf("failed to create directory: '%s', error: '%s'", dir, err.Error())
+		return fmt.Errorf("Failed to create directory: '%s', error: '%s'", dir, err.Error())
 	}
 
 	return nil
@@ -442,4 +421,39 @@ func CopySymLink(source, dest string) error {
 		return err
 	}
 	return os.Symlink(link, dest)
+}
+
+// RetryFunction :
+func RetryFunction(attempts int, sleep time.Duration, f func() error) (err error) {
+	for i := 0; ; i++ {
+		err = f()
+		if err == nil {
+			return
+		}
+
+		if i >= (attempts - 1) {
+			break
+		}
+
+		time.Sleep(sleep)
+
+		fmt.Println("Retrying after error:", err)
+	}
+	return fmt.Errorf("After %d attempts, last error: %s", attempts, err)
+}
+
+// ExecWrapper :
+func ExecWrapper(args ...string) error {
+	cmd := exec.Command(args[0], args[1:]...)
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		Cloneflags:   syscall.CLONE_NEWUTS | syscall.CLONE_NEWPID | syscall.CLONE_NEWNS,
+		Unshareflags: syscall.CLONE_NEWNS,
+	}
+	if err := cmd.Run(); err != nil {
+		return err
+	}
+	return nil
 }

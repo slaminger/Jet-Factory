@@ -8,11 +8,8 @@
 # Prepare root filesystem in Docker
 docker run --cap-add MKNOD --device=/dev/fuse --security-opt apparmor:unconfined --cap-add SYS_ADMIN --privileged --rm -ti -v /root/${DISTRO}:/root/${DISTRO} -v /var/run/docker.sock:/var/run/docker.sock alizkan/jet-factory:1.0.0 ./jetfactory -prepare -distro=${DISTRO}
 
-# Chroot in filesystem and apply configs
-docker run --cap-add MKNOD --device=/dev/fuse --security-opt apparmor:unconfined --cap-add SYS_ADMIN --privileged --rm -ti -v /root/${DISTRO}:/root/${DISTRO} -v /var/run/docker.sock:/var/run/docker.sock alizkan/jet-factory:1.0.0 ./jetfactory -configs -distro=${DISTRO}
-
 # Chroot in filesystem and install packages
-docker run --cap-add MKNOD --device=/dev/fuse --security-opt apparmor:unconfined --cap-add SYS_ADMIN --privileged --rm -ti -v /root/${DISTRO}:/root/${DISTRO} -v /var/run/docker.sock:/var/run/docker.sock alizkan/jet-factory:1.0.0 ./jetfactory -packages -distro=${DISTRO}
+docker run --cap-add MKNOD --device=/dev/fuse --security-opt apparmor:unconfined --cap-add SYS_ADMIN --privileged --rm -ti -v /root/${DISTRO}:/root/${DISTRO} -v /var/run/docker.sock:/var/run/docker.sock alizkan/jet-factory:1.0.0 ./jetfactory -chroot -distro=${DISTRO}
 
 # Make the final installable file
 docker run --cap-add MKNOD --device=/dev/fuse --security-opt apparmor:unconfined --cap-add SYS_ADMIN --privileged --rm -ti -v /root/${DISTRO}:/root/${DISTRO} -v /var/run/docker.sock:/var/run/docker.sock alizkan/jet-factory:1.0.0 ./jetfactory -image -distro=${DISTRO}

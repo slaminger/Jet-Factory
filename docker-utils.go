@@ -2,8 +2,8 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"io"
-	"log"
 	"os"
 	"path/filepath"
 
@@ -13,44 +13,6 @@ import (
 	"github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/stdcopy"
 )
-
-// PreChroot : Copy qemu-aarch64-static binary and mount bind the directories
-func PreChroot(mount string) error {
-	err := Copy("/usr/bin/qemu-"+buildarch+"-static", mount+"/usr/bin")
-	err = SpawnContainer(
-		[]string{
-			"mount", "--bind",
-			mount, mount,
-
-			"&&", "mount", "--bind",
-			mount + "/bootloader",
-			mount + "/boot",
-		},
-		nil,
-		mount,
-	)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-// PostChroot : Remove qemu-aarch64-static binary and unmount the binded directories
-func PostChroot(mounted string) error {
-	err := SpawnContainer(
-		[]string{
-			"rm", mounted + "/usr/bin/qemu-" + buildarch + "-static",
-			"&&", "umount", mounted,
-			"&&", "mount", mounted + "/boot",
-		},
-		nil,
-		mounted,
-	)
-	if err != nil {
-		return err
-	}
-	return nil
-}
 
 // SpawnContainer : Spawns a container based on dockerImageName
 func SpawnContainer(cmd, env []string, volume string) error {
@@ -74,6 +36,7 @@ func SpawnContainer(cmd, env []string, volume string) error {
 		Image: dockerImageName,
 		Cmd:   cmd,
 		Env:   env,
+		Tty:   true,
 	}, &container.HostConfig{
 		Mounts: []mount.Mount{
 			{
@@ -87,7 +50,7 @@ func SpawnContainer(cmd, env []string, volume string) error {
 				Target: "/var/run/docker.sock",
 			},
 		},
-	}, nil, distribution.Name)
+	}, nil, "")
 	if err != nil {
 		return err
 	}
@@ -100,12 +63,15 @@ func SpawnContainer(cmd, env []string, volume string) error {
 		return err
 	}
 
-	out, err := cli.ContainerLogs(ctx, resp.ID, types.ContainerLogsOptions{ShowStdout: true})
+	out, err := cli.ContainerLogs(ctx, resp.ID, types.ContainerLogsOptions{ShowStdout: true, ShowStderr: true, Follow: true})
 	if err != nil {
 		return err
 	}
 
-	stdcopy.StdCopy(os.Stdout, os.Stderr, out)
-	log.Println(out)
+	combined, err := stdcopy.StdCopy(os.Stdout, os.Stderr, out)
+	if err != nil {
+		return err
+	}
+	fmt.Println(combined)
 	return nil
 }
