@@ -1,6 +1,6 @@
 # Jet Factory
 
-AIO universal L4T distribution builder
+Create live and/or flashable linux distribution root filesystem images.
 
 ## Scripts options
 

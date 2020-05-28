@@ -36,15 +36,8 @@
             "lightdm",
             "lightdm-gtk-greeter",
             "alsa-utils",
-            "joycond-git",
             "netctl",
             "dhcpcd",
-            "switch-boot-files-bin",
-            "systemd-suspend-modules",
-            "xorg-server-tegra",
-            "switch-config",
-            "tegra-bsp",
-            "linux-tegra",
             "networkmanager"
         ]
     },
