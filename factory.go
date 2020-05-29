@@ -234,11 +234,10 @@ func InstallPackagesInChrootEnv(path string) error {
 	if distribution.Name == "arch" {
 		err := ExecWrapper("pacman-key", "--init")
 		if err != nil {
-			log.Println(err)
 			return err
 		}
 
-		err = ExecWrapper("pacman-key", "--populate archlinuxarm")
+		err = ExecWrapper("pacman-key", "--populate", "archlinuxarm")
 		if err != nil {
 			return err
 		}
@@ -254,7 +253,6 @@ func InstallPackagesInChrootEnv(path string) error {
 
 	err = ExecWrapper(man, manArgs, strings.ReplaceAll(strings.Join(distribution.Packages, ","), ",", " "))
 	if err != nil {
-		log.Println("packages install error:", err)
 		return err
 	}
 
@@ -355,22 +353,13 @@ func Factory(distro string, dst string) (err error) {
 		}
 
 		if chroot {
-			if err := PreChroot(path); err != nil {
-				return err
-			}
-
-			oldRootF, err := os.Open("/")
-			defer oldRootF.Close()
-			if err != nil {
-				return err
-			}
-
-			err = Chroot(path)
+			oldRootF, err := Chroot(path)
 			if err != nil {
 				return err
 			}
 
 			if err := InstallPackagesInChrootEnv(path); err != nil {
+				log.Println(err)
 				return err
 			}
 
@@ -378,16 +367,7 @@ func Factory(distro string, dst string) (err error) {
 				return err
 			}
 
-			err = oldRootF.Chdir()
-			if err != nil {
-				return err
-			}
-			err = Chroot(".")
-			if err != nil {
-				return err
-			}
-
-			if err := PostChroot(path); err != nil {
+			if err := PostChroot(path, oldRootF); err != nil {
 				return err
 			}
 

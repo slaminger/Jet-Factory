@@ -22,7 +22,6 @@ import (
 func WalkURL(source string) *string {
 	resp, err := http.Get(source)
 	if err != nil {
-		fmt.Println(err)
 		return nil
 	}
 	defer resp.Body.Close()
@@ -32,7 +31,6 @@ func WalkURL(source string) *string {
 	}
 	bodyBytes, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		fmt.Println(err)
 		return nil
 	}
 
