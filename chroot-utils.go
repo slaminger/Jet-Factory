@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
-	"syscall"
 
 	"github.com/docker/docker/pkg/mount"
 	"github.com/syndtr/gocapability/capability"
@@ -15,6 +14,18 @@ import (
 
 // PostChroot : Remove qemu-aarch64-static binary and unmount the binded directories
 func PostChroot(mountpoint string, oldRootF *os.File) error {
+	if err := mount.Unmount("/proc"); err != nil {
+		return err
+	}
+
+	if err := mount.Unmount("/sys"); err != nil {
+		return err
+	}
+
+	if err := mount.Unmount("/dev"); err != nil {
+		return err
+	}
+
 	err := oldRootF.Chdir()
 	if err != nil {
 		return err
@@ -24,24 +35,12 @@ func PostChroot(mountpoint string, oldRootF *os.File) error {
 		return err
 	}
 
-	err = ExecWrapper("rm", mountpoint+"/usr/bin/qemu-"+buildarch+"-static")
+	if err := mount.Unmount(mountpoint); err != nil {
+		return err
+	}
+
+	err = os.Remove(mountpoint + "/usr/bin/qemu-" + buildarch + "-static")
 	if err != nil {
-		return err
-	}
-
-	if err := syscall.Unmount(mountpoint, 0); err != nil {
-		return err
-	}
-
-	if err := syscall.Unmount("proc", 0); err != nil {
-		return err
-	}
-
-	if err := syscall.Unmount("sys", 0); err != nil {
-		return err
-	}
-
-	if err := syscall.Unmount("dev", 0); err != nil {
 		return err
 	}
 
@@ -50,6 +49,25 @@ func PostChroot(mountpoint string, oldRootF *os.File) error {
 
 // Chroot : Copy qemu-aarch64-static binary and mount bind the directories
 func Chroot(path string) (*os.File, error) {
+	if err := ExecWrapper("chmod", "-R", "755", path+"/usr/bin/"); err != nil {
+		return nil, err
+	}
+
+	f, err := os.OpenFile(path+"/etc/resolv.conf",
+		os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0755)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	if _, err := f.WriteString("nameserver 8.8.8.8"); err != nil {
+		return nil, err
+	}
+
+	err = Copy("/usr/bin/qemu-"+buildarch+"-static", path+"/usr/bin/qemu-"+buildarch+"-static")
+	if err != nil {
+		return nil, err
+	}
+
 	oldRootF, err := os.Open("/")
 	defer oldRootF.Close()
 	if err != nil {
@@ -146,27 +164,27 @@ func realChroot(path string) error {
 		return err
 	}
 
+	if err := mount.Mount("/sys", path+"/sys", "sysfs", ""); err != nil {
+		return err
+	}
+
+	if err := mount.Mount("/dev", path+"/dev", "devfs", ""); err != nil {
+		return err
+	}
+
+	if err := mount.Mount("/run", path+"/run", "bind", ""); err != nil {
+		return err
+	}
+
+	if err := mount.Mount("/proc", path+"/proc", "proc", ""); err != nil {
+		return err
+	}
+
 	if err := unix.Chroot(path); err != nil {
 		return fmt.Errorf("Error after fallback to chroot: %v", err)
 	}
 	if err := unix.Chdir("/"); err != nil {
 		return fmt.Errorf("Error changing to new root after chroot: %v", err)
-	}
-
-	if err := syscall.Mount("proc", "proc", "proc", 0, ""); err != nil {
-		return err
-	}
-
-	if err := syscall.Mount("sys", "sys", "sysfs", 0, ""); err != nil {
-		return err
-	}
-
-	if err := syscall.Mount("devfs", "dev", "devfs", 0, ""); err != nil {
-		return err
-	}
-
-	if err := syscall.Mount("run", "run", "bind", 0, ""); err != nil {
-		return err
 	}
 
 	return nil

@@ -232,12 +232,12 @@ func InstallPackagesInChrootEnv(path string) error {
 	manArgs := strings.Join(strings.Split(packageManager, " ")[1:], " ")
 
 	if distribution.Name == "arch" {
-		err := ExecWrapper("pacman-key", "--init")
+		err := SpawnContainer([]string{"arch-chroot", "pacman-key", "--init"}, nil, path)
 		if err != nil {
 			return err
 		}
 
-		err = ExecWrapper("pacman-key", "--populate", "archlinuxarm")
+		err = SpawnContainer([]string{"arch-chroot", "pacman-key", "--populate", "archlinuxarm"}, nil, path)
 		if err != nil {
 			return err
 		}
@@ -245,13 +245,13 @@ func InstallPackagesInChrootEnv(path string) error {
 	}
 
 	if isVariant {
-		err := ExecWrapper(man, manArgs, strings.ReplaceAll(strings.Join(variant.Packages, ","), ",", " "))
+		err := SpawnContainer([]string{"arch-chroot", man, manArgs, strings.ReplaceAll(strings.Join(variant.Packages, ","), ",", " ")}, nil, path)
 		if err != nil {
 			return err
 		}
 	}
 
-	err = ExecWrapper(man, manArgs, strings.ReplaceAll(strings.Join(distribution.Packages, ","), ",", " "))
+	err = SpawnContainer([]string{"arch-chroot", man, manArgs, strings.ReplaceAll(strings.Join(distribution.Packages, ","), ",", " ")}, nil, path)
 	if err != nil {
 		return err
 	}
@@ -264,14 +264,14 @@ func InstallPackagesInChrootEnv(path string) error {
 func ApplyConfigsInChrootEnv(path string) error {
 	if isVariant {
 		for _, config := range variant.Configs {
-			if err := ExecWrapper(config); err != nil {
+			if err := SpawnContainer([]string{"arch-chroot", config}, nil, path); err != nil {
 				return err
 			}
 		}
 	}
 
 	for _, config := range distribution.Configs {
-		if err := ExecWrapper(config); err != nil {
+		if err := SpawnContainer([]string{"arch-chroot", config}, nil, path); err != nil {
 			return err
 		}
 	}
@@ -353,10 +353,15 @@ func Factory(distro string, dst string) (err error) {
 		}
 
 		if chroot {
-			oldRootF, err := Chroot(path)
-			if err != nil {
-				return err
-			}
+			// oldRootF, err := Chroot(path)
+			// if err != nil {
+			// 	return err
+			// }
+
+			// if err := ExecWrapper("ping", "-c", "4", "www.google.com"); err != nil {
+			// 	log.Println(err)
+			// 	return err
+			// }
 
 			if err := InstallPackagesInChrootEnv(path); err != nil {
 				log.Println(err)
@@ -367,9 +372,9 @@ func Factory(distro string, dst string) (err error) {
 				return err
 			}
 
-			if err := PostChroot(path, oldRootF); err != nil {
-				return err
-			}
+			// if err := PostChroot(path, oldRootF); err != nil {
+			// 	return err
+			// }
 
 		}
 
