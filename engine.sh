@@ -6,12 +6,12 @@
 # 7z a "SWR-${img%.*}.7z" ${build_dir}/{bootloader,switchroot}
 
 # Prepare root filesystem in Docker
-docker run --security-opt apparmor:unconfined --cap-add SYS_ADMIN --privileged --rm -ti -v /root/${DISTRO}:/root/${DISTRO} -v /var/run/docker.sock:/var/run/docker.sock alizkan/jet-factory:1.0.0 ./jetfactory -prepare -distro=${DISTRO}
+docker run --privileged --cap-add=ALL --device=/dev/fuse --security-opt apparmor:unconfined --rm -ti -v /root/${DISTRO}:/root/${DISTRO} -v /var/run/docker.sock:/var/run/docker.sock alizkan/jet-factory:1.0.0 ./jetfactory -prepare -distro=${DISTRO}
 
 docker run --rm --privileged multiarch/qemu-user-static:register --reset
 
 # Chroot in filesystem and install packages
-docker run --security-opt apparmor:unconfined --cap-add SYS_ADMIN --privileged --rm -ti -v /dev:/dev -v /root/${DISTRO}:/root/${DISTRO} -v /var/run/docker.sock:/var/run/docker.sock alizkan/jet-factory:1.0.0 ./jetfactory -chroot -distro=${DISTRO}
+docker run --privileged --cap-add=ALL --device=/dev/fuse --security-opt apparmor:unconfined --rm -ti -v /root/${DISTRO}:/root/${DISTRO} -v /var/run/docker.sock:/var/run/docker.sock alizkan/jet-factory:1.0.0 ./jetfactory -chroot -distro=${DISTRO}
 
 # Make the final installable file
-docker run --security-opt apparmor:unconfined --cap-add SYS_ADMIN --privileged --rm -ti -v /root/${DISTRO}:/root/${DISTRO} -v /var/run/docker.sock:/var/run/docker.sock alizkan/jet-factory:1.0.0 ./jetfactory -image -distro=${DISTRO}
+docker run --privileged --cap-add=ALL --device=/dev/fuse --security-opt apparmor:unconfined --rm -ti -v /root/${DISTRO}:/root/${DISTRO} -v /var/run/docker.sock:/var/run/docker.sock alizkan/jet-factory:1.0.0 ./jetfactory -image -distro=${DISTRO}

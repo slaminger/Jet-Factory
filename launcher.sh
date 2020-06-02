@@ -30,52 +30,52 @@ do
     case $distro in
         $ARCH1)
             echo -e "\nBuilding $ARCH1"
-            docker run --security-opt apparmor:unconfined --cap-add SYS_ADMIN --privileged --rm -it -e DISTRO="$ARCH1" -v /dev:/dev -v "$basepath":/root/${distro} -v /var/run/docker.sock:/var/run/docker.sock alizkan/jet-factory:1.0.0
+            docker run --privileged --cap-add=ALL --device=/dev/fuse --security-opt apparmor:unconfined --rm -it -e DISTRO="$ARCH1" -v "$basepath":/root/${distro} -v /var/run/docker.sock:/var/run/docker.sock alizkan/jet-factory:1.0.0
             exit 0
         ;;
         $ARCH2)
             echo -e "\nBuilding $ARCH2"
-            docker run --security-opt apparmor:unconfined --cap-add SYS_ADMIN --privileged --rm -it -e DISTRO="$ARCH2" -v /dev:/dev -v "$basepath":/root/${distro} -v /var/run/docker.sock:/var/run/docker.sock alizkan/jet-factory:1.0.0
+            docker run --privileged --cap-add=ALL --device=/dev/fuse --security-opt apparmor:unconfined --rm -it -e DISTRO="$ARCH2" -v "$basepath":/root/${distro} -v /var/run/docker.sock:/var/run/docker.sock alizkan/jet-factory:1.0.0
             exit 0
         ;;
         $ARCH3)
             echo -e "\nBuilding $ARCH3"
-            docker run --security-opt apparmor:unconfined --cap-add SYS_ADMIN --privileged --rm -it -e DISTRO="$ARCH3" -v /dev:/dev -v "$basepath":/root/${distro} -v /var/run/docker.sock:/var/run/docker.sock alizkan/jet-factory:1.0.0
+            docker run --privileged --cap-add=ALL --device=/dev/fuse --security-opt apparmor:unconfined --rm -it -e DISTRO="$ARCH3" -v "$basepath":/root/${distro} -v /var/run/docker.sock:/var/run/docker.sock alizkan/jet-factory:1.0.0
             exit 0
         ;;
         $FEDORA)
             echo -e "\nBuilding $FEDORA"
-            docker run --security-opt apparmor:unconfined --cap-add SYS_ADMIN --privileged --rm -it -e DISTRO="$FEDORA" -v /dev:/dev -v "$basepath":/root/${distro} -v /var/run/docker.sock:/var/run/docker.sock alizkan/jet-factory:1.0.0
+            docker run --privileged --cap-add=ALL --device=/dev/fuse --security-opt apparmor:unconfined --rm -it -e DISTRO="$FEDORA" -v "$basepath":/root/${distro} -v /var/run/docker.sock:/var/run/docker.sock alizkan/jet-factory:1.0.0
             exit 0
         ;;
         $GENTOO)
             echo -e "\nBuilding $GENTOO"
-            docker run --security-opt apparmor:unconfined --cap-add SYS_ADMIN --privileged --rm -it -e DISTRO="$GENTOO" -v /dev:/dev -v "$basepath":/root/${distro} -v /var/run/docker.sock:/var/run/docker.sock alizkan/jet-factory:1.0.0
+            docker run --privileged --cap-add=ALL --device=/dev/fuse --security-opt apparmor:unconfined --rm -it -e DISTRO="$GENTOO" -v "$basepath":/root/${distro} -v /var/run/docker.sock:/var/run/docker.sock alizkan/jet-factory:1.0.0
             exit 0
         ;;
         $UBUNTU)
             echo -e "\nBuilding $UBUNTU"
-            docker run --security-opt apparmor:unconfined --cap-add SYS_ADMIN --privileged --rm -it -e DISTRO="$UBUNTU" -v /dev:/dev -v "$basepath":/root/${distro} -v /var/run/docker.sock:/var/run/docker.sock alizkan/jet-factory:1.0.0
+            docker run --privileged --cap-add=ALL --device=/dev/fuse --security-opt apparmor:unconfined --rm -it -e DISTRO="$UBUNTU" -v "$basepath":/root/${distro} -v /var/run/docker.sock:/var/run/docker.sock alizkan/jet-factory:1.0.0
             exit 0
         ;;
         $LINEAGE)
             echo -e "\nBuilding $ICOSA"
-            docker run --security-opt apparmor:unconfined --cap-add SYS_ADMIN --privileged --rm -it -e DISTRO="$ICOSA" -v /dev:/dev -v "$basepath":/root/${distro} -v /var/run/docker.sock:/var/run/docker.sock alizkan/jet-factory:1.0.0
+            docker run --privileged --cap-add=ALL --device=/dev/fuse --security-opt apparmor:unconfined --privileged --rm -it -e DISTRO="$ICOSA" -v "$basepath":/root/${distro} -v /var/run/docker.sock:/var/run/docker.sock alizkan/jet-factory:1.0.0
             exit 0
         ;;
         $ICOSA)
             echo -e "\nBuilding $ICOSA"
-            docker run --security-opt apparmor:unconfined --cap-add SYS_ADMIN --privileged --rm -it -e DISTRO="$ICOSA" -v /dev:/dev -v "$basepath":/root/${distro} -v /var/run/docker.sock:/var/run/docker.sock alizkan/jet-factory:1.0.0
+            docker run --privileged --cap-add=ALL --device=/dev/fuse --security-opt apparmor:unconfined --privileged --rm -it -e DISTRO="$ICOSA" -v "$basepath":/root/${distro} -v /var/run/docker.sock:/var/run/docker.sock alizkan/jet-factory:1.0.0
             exit 0
         ;;
         $FOSTER)
             echo -e "\nBuilding $FOSTER"
-            docker run --security-opt apparmor:unconfined --cap-add SYS_ADMIN --privileged --rm -it -e DISTRO="$FOSTER" -v /dev:/dev -v "$basepath":/root/${distro} -v /var/run/docker.sock:/var/run/docker.sock alizkan/jet-factory:1.0.0
+            docker run --privileged --cap-add=ALL --device=/dev/fuse --security-opt apparmor:unconfined --privileged --rm -it -e DISTRO="$FOSTER" -v "$basepath":/root/${distro} -v /var/run/docker.sock:/var/run/docker.sock alizkan/jet-factory:1.0.0
             exit 0
         ;;
         $FOSTER_TAB)
             echo "\nBuilding $FOSTER_TAB"
-            docker run --security-opt apparmor:unconfined --cap-add SYS_ADMIN --privileged --rm -it -e DISTRO="$FOSTER_TAB" -v /dev:/dev -v "$basepath":/root/${distro} -v /var/run/docker.sock:/var/run/docker.sock alizkan/jet-factory:1.0.0
+            docker run --privileged --cap-add=ALL --device=/dev/fuse --security-opt apparmor:unconfined --privileged --rm -it -e DISTRO="$FOSTER_TAB" -v "$basepath":/root/${distro} -v /var/run/docker.sock:/var/run/docker.sock alizkan/jet-factory:1.0.0
             exit 0
         ;;
         *) 
