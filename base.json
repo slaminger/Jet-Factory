@@ -19,7 +19,7 @@
             ]
         },
         "configs": [
-            "wget -O - https://raw.githubusercontent.com/Azkali/L4T-Packages-Repository/master/build-stage2-arch.sh | bash"
+            "wget https://raw.githubusercontent.com/Azkali/L4T-Packages-Repository/master/build-stage2-arch.sh && ./build-stage2-arch.sh"
         ],
         "packages": [
             "xorg-xrandr",
