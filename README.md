@@ -18,7 +18,8 @@ Options:
 ## Build
 
 ```sh
-docker run --cap-add MKNOD --device=/dev/fuse --security-opt apparmor:unconfined --cap-add SYS_ADMIN --privileged --rm -it -e DISTRO=fedora -v /var/run/docker.sock:/var/run/docker.sock alizkan/jet-factory:1.0.0
+mkdir -p ./linux
+docker run --name jet --cap-add=ALL --device=/dev/fuse --security-opt apparmor:unconfined --privileged --rm -it -e DISTRO=fedora -v "$PWD"/linux:/root/linux -v /var/run/docker.sock:/var/run/docker.sock alizkan/jet-factory:1.0.0
 ```
 
 ## Credits

@@ -1,25 +1,20 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/mount"
 	"github.com/docker/docker/client"
-	"github.com/docker/docker/pkg/stdcopy"
 )
 
-// SpawnContainer : Spawns a container based on dockerImageName
-func SpawnContainer(cmd, env []string, volume string) error {
-	volume, err := filepath.Abs(volume)
-	if err != nil {
-		return err
-	}
+// BinfmtSupport :
+func BinfmtSupport() error {
 	ctx := context.Background()
 	cli, err := client.NewClient(client.DefaultDockerHost, client.DefaultVersion, nil, map[string]string{"Content-Type": "application/json"})
 	if err != nil {
@@ -33,23 +28,9 @@ func SpawnContainer(cmd, env []string, volume string) error {
 	io.Copy(os.Stdout, reader)
 
 	resp, err := cli.ContainerCreate(ctx, &container.Config{
-		Image: dockerImageName,
-		Cmd:   cmd,
-		Env:   env,
-		Tty:   true,
+		Image: "docker.io/multiarch/qemu-user-static:register",
 	}, &container.HostConfig{
-		Mounts: []mount.Mount{
-			{
-				Type:   mount.TypeBind,
-				Source: volume,
-				Target: volume,
-			},
-			{
-				Type:   mount.TypeBind,
-				Source: "/var/run/docker.sock",
-				Target: "/var/run/docker.sock",
-			},
-		},
+		Privileged: true,
 	}, nil, "")
 	if err != nil {
 		return err
@@ -62,16 +43,71 @@ func SpawnContainer(cmd, env []string, volume string) error {
 	if _, err := cli.ContainerWait(ctx, resp.ID); err != nil {
 		return err
 	}
+	return nil
+}
 
-	out, err := cli.ContainerLogs(ctx, resp.ID, types.ContainerLogsOptions{ShowStdout: true, ShowStderr: true, Follow: true})
+// SpawnContainer : Spawns a container based on dockerImageName
+func SpawnContainer(cmd, env []string, volume string) error {
+	ctx := context.Background()
+	cli, err := client.NewClient(client.DefaultDockerHost, client.DefaultVersion, nil, map[string]string{"Content-Type": "application/json"})
 	if err != nil {
 		return err
 	}
 
-	combined, err := stdcopy.StdCopy(os.Stdout, os.Stderr, out)
+	reader, err := cli.ImagePull(ctx, dockerImageName, types.ImagePullOptions{})
 	if err != nil {
 		return err
 	}
-	fmt.Println(combined)
+	io.Copy(os.Stdout, reader)
+
+	resp, err := cli.ContainerCreate(ctx, &container.Config{
+		Image:        dockerImageName,
+		Cmd:          cmd,
+		Env:          env,
+		Tty:          true,
+		AttachStdout: true,
+		AttachStderr: true,
+	}, &container.HostConfig{
+		Mounts: []mount.Mount{
+			{
+				Type:   mount.TypeBind,
+				Source: "/var/run/docker.sock",
+				Target: "/var/run/docker.sock",
+			},
+		},
+		Privileged:  true,
+		VolumesFrom: []string{"jet"},
+	}, nil, "")
+	if err != nil {
+		return err
+	}
+
+	if err := cli.ContainerStart(ctx, resp.ID, types.ContainerStartOptions{}); err != nil {
+		return err
+	}
+
+	go func() error {
+		reader, err := cli.ContainerLogs(ctx, resp.ID, types.ContainerLogsOptions{
+			ShowStdout: true,
+			ShowStderr: true,
+			Follow:     true,
+			Timestamps: false,
+		})
+		if err != nil {
+			return err
+		}
+		defer reader.Close()
+
+		scanner := bufio.NewScanner(reader)
+		for scanner.Scan() {
+			fmt.Println(scanner.Text())
+		}
+		return nil
+	}()
+
+	if _, err := cli.ContainerWait(ctx, resp.ID); err != nil {
+		return err
+	}
+
 	return nil
 }

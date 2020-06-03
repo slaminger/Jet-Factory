@@ -11,6 +11,8 @@ require (
 	github.com/docker/docker v1.13.1
 	github.com/docker/go-connections v0.4.0 // indirect
 	github.com/docker/go-units v0.4.0 // indirect
+	github.com/h2non/filetype v1.0.12 // indirect
+	github.com/juju/errors v0.0.0-20200330140219-3fe23663418f // indirect
 	github.com/mholt/archiver/v3 v3.3.0
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/pkg/errors v0.9.1 // indirect

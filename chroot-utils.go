@@ -5,7 +5,6 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"strconv"
 
 	"github.com/docker/docker/pkg/mount"
 	"github.com/syndtr/gocapability/capability"
@@ -14,32 +13,16 @@ import (
 
 // PostChroot : Remove qemu-aarch64-static binary and unmount the binded directories
 func PostChroot(mountpoint string, oldRootF *os.File) error {
-	if err := mount.Unmount("/proc"); err != nil {
-		return err
-	}
-
-	if err := mount.Unmount("/sys"); err != nil {
-		return err
-	}
-
-	if err := mount.Unmount("/dev"); err != nil {
-		return err
-	}
-
-	err := oldRootF.Chdir()
+	err := os.Remove(mountpoint + "/usr/bin/qemu-" + buildarch + "-static")
 	if err != nil {
 		return err
 	}
-	err = unix.Chroot(".")
-	if err != nil {
-		return err
-	}
+	return nil
+}
 
-	if err := mount.Unmount(mountpoint); err != nil {
-		return err
-	}
-
-	err = os.Remove(mountpoint + "/usr/bin/qemu-" + buildarch + "-static")
+// PreChroot : Copy qemu-aarch64-static binary and mount bind the directories
+func PreChroot(path string) error {
+	err := Copy("/usr/bin/qemu-"+buildarch+"-static", path+"/usr/bin/qemu-"+buildarch+"-static")
 	if err != nil {
 		return err
 	}
@@ -49,25 +32,6 @@ func PostChroot(mountpoint string, oldRootF *os.File) error {
 
 // Chroot : Copy qemu-aarch64-static binary and mount bind the directories
 func Chroot(path string) (*os.File, error) {
-	if err := ExecWrapper("chmod", "-R", "755", path+"/usr/bin/"); err != nil {
-		return nil, err
-	}
-
-	f, err := os.OpenFile(path+"/etc/resolv.conf",
-		os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0755)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-	if _, err := f.WriteString("nameserver 8.8.8.8"); err != nil {
-		return nil, err
-	}
-
-	err = Copy("/usr/bin/qemu-"+buildarch+"-static", path+"/usr/bin/qemu-"+buildarch+"-static")
-	if err != nil {
-		return nil, err
-	}
-
 	oldRootF, err := os.Open("/")
 	defer oldRootF.Close()
 	if err != nil {
@@ -160,23 +124,23 @@ func Chroot(path string) (*os.File, error) {
 }
 
 func realChroot(path string) error {
-	if err := cg(); err != nil {
+
+	if err := mount.Mount("proc", path+"/proc", "proc", ""); err != nil {
+		return err
+	}
+	if err := mount.Mount("/sys", path+"/sys", "none", "rbind"); err != nil {
 		return err
 	}
 
-	if err := mount.Mount("/sys", path+"/sys", "sysfs", ""); err != nil {
+	if err := mount.Mount("", path+"/sys", "none", "rslave"); err != nil {
 		return err
 	}
 
-	if err := mount.Mount("/dev", path+"/dev", "devfs", ""); err != nil {
+	if err := mount.Mount("/dev", path+"/dev", "none", "rbind"); err != nil {
 		return err
 	}
 
-	if err := mount.Mount("/run", path+"/run", "bind", ""); err != nil {
-		return err
-	}
-
-	if err := mount.Mount("/proc", path+"/proc", "proc", ""); err != nil {
+	if err := mount.Mount("/run", path+"/run", "none", "rbind"); err != nil {
 		return err
 	}
 
@@ -187,25 +151,5 @@ func realChroot(path string) error {
 		return fmt.Errorf("Error changing to new root after chroot: %v", err)
 	}
 
-	return nil
-}
-
-func cg() error {
-	cgroups := "/sys/fs/cgroup/"
-	pids := filepath.Join(cgroups, "pids")
-	os.Mkdir(filepath.Join(pids, "liz"), 0755)
-	err := ioutil.WriteFile(filepath.Join(pids, "liz/pids.max"), []byte("20"), 0700)
-	if err != nil {
-		return err
-	}
-	// Removes the new cgroup in place after the container exits
-	err = ioutil.WriteFile(filepath.Join(pids, "liz/notify_on_release"), []byte("1"), 0700)
-	if err != nil {
-		return err
-	}
-	err = ioutil.WriteFile(filepath.Join(pids, "liz/cgroup.procs"), []byte(strconv.Itoa(os.Getpid())), 0700)
-	if err != nil {
-		return err
-	}
 	return nil
 }
