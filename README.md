@@ -5,10 +5,10 @@ Create live and/or flashable linux distribution root filesystem images.
 ## Scripts options
 
 ```
-Usage: jet-factory [options]
+Usage: jetfactory [options]
 Options:
   -arch               Platform build architecture; default aarch64
-  -distro             Distribution to build; ubuntu, fedora, opensuse(leap, tumbleweed), slackware, arch(blackarch, arch-bang), lineage(icosa, foster, foster_tab)
+  -distro             Distribution to build: ubuntu, fedora, opensuse(leap, tumbleweed), slackware, arch(blackarch, arch-bang), lineage(icosa, foster, foster_tab)
   -hekate             Build an hekate installable filesystem
   -path               Output path; defaults to current directory
   -staging            Install built local packages
@@ -17,9 +17,11 @@ Options:
 
 ## Build
 
+To build arch :
+
 ```sh
 mkdir -p ./linux
-docker run --name jet --cap-add=ALL --device=/dev/fuse --security-opt apparmor:unconfined --privileged --rm -it -e DISTRO=fedora -v "$PWD"/linux:/root/linux -v /var/run/docker.sock:/var/run/docker.sock alizkan/jet-factory:1.0.0
+docker run --name jet --cap-add=ALL --device=/dev/fuse --security-opt apparmor:unconfined --privileged --rm -it -e DISTRO=arch -v "$PWD"/linux:/root/linux -v /var/run/docker.sock:/var/run/docker.sock alizkan/jet-factory:1.0.0
 ```
 
 ## Credits

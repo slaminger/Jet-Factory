@@ -261,6 +261,12 @@ func InstallPackagesInChrootEnv(path string) error {
 		return err
 	}
 
+	err = SpawnContainer([]string{"arch-chroot", path, "ln", "-s", "/proc/self/mounts", "/etc/mtab"}, nil, path)
+	if err != nil {
+		log.Println(err)
+		return err
+	}
+
 	if distribution.Name == "arch" {
 		err = SpawnContainer([]string{"arch-chroot", path, "pacman-key", "--init"}, nil, path)
 		if err != nil {

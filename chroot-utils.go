@@ -31,13 +31,14 @@ func PreChroot(path string) error {
 		return err
 	}
 
+	if err = os.Remove(path + "/etc/mtab"); err != nil {
+		return err
+	}
+
 	if err = mount.Mount(path, path, "bind", "rbind,rw"); err != nil {
 		return err
 	}
 
-	if err = mount.Mount("/proc", path+"/proc", "proc", ""); err != nil {
-		return err
-	}
 	if err = mount.Mount("/sys", path+"/sys", "bind", "rbind"); err != nil {
 		return err
 	}
