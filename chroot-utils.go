@@ -27,6 +27,44 @@ func PreChroot(path string) error {
 		return err
 	}
 
+	if err = Copy("/etc/resolv.conf", path+"/etc/resolv.conf"); err != nil {
+		return err
+	}
+
+	if err = mount.Mount(path, path, "bind", "rbind,rw"); err != nil {
+		return err
+	}
+
+	if err = mount.Mount("/proc", path+"/proc", "proc", ""); err != nil {
+		return err
+	}
+	if err = mount.Mount("/sys", path+"/sys", "bind", "rbind"); err != nil {
+		return err
+	}
+
+	if err = mount.Mount("/dev", path+"/dev", "bind", "rbind"); err != nil {
+		return err
+	}
+
+	if err = mount.Mount("/run", path+"/run", "bind", "rbind"); err != nil {
+		return err
+	}
+
+	if distribution.Name == "arch" {
+		if err = os.MkdirAll(path+"/var/cache/pacman/pkg", 0755); err != nil {
+			return err
+		}
+		if err = os.MkdirAll(path+"/var/lib/pacman", 0755); err != nil {
+			return err
+		}
+		if err = os.MkdirAll(path+"/var/log", 0755); err != nil {
+			return err
+		}
+		if err = os.MkdirAll(path+"/tmp/", 1777); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
@@ -124,26 +162,6 @@ func Chroot(path string) (*os.File, error) {
 }
 
 func realChroot(path string) error {
-
-	if err := mount.Mount("proc", path+"/proc", "proc", ""); err != nil {
-		return err
-	}
-	if err := mount.Mount("/sys", path+"/sys", "none", "rbind"); err != nil {
-		return err
-	}
-
-	if err := mount.Mount("", path+"/sys", "none", "rslave"); err != nil {
-		return err
-	}
-
-	if err := mount.Mount("/dev", path+"/dev", "none", "rbind"); err != nil {
-		return err
-	}
-
-	if err := mount.Mount("/run", path+"/run", "none", "rbind"); err != nil {
-		return err
-	}
-
 	if err := unix.Chroot(path); err != nil {
 		return fmt.Errorf("Error after fallback to chroot: %v", err)
 	}

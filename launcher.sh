@@ -23,7 +23,6 @@ ICOSA="icosa"
 FOSTER="foster"
 FOSTER_TAB="foster_tab"
 
-sudo rm -rf "$basepath"/*/disk "$basepath"/*/*.img 
 
 select distro in "$ARCH1" "$ARCH2" "$ARCH3" "$FEDORA" "$GENTOO" "$UBUNTU" "$LINEAGE" "$ICOSA" "$FOSTER" "$FOSTER_TAB"
 do   
@@ -46,7 +45,7 @@ do
         ;;
         $FEDORA)
             echo -e "\nBuilding $FEDORA"
-            docker run --name jet --privileged --cap-add=ALL --device=/dev/fuse --security-opt apparmor:unconfined --rm -it -e DISTRO="$FEDORA" -v "$basepath":/root/linux -v /var/run/docker.sock:/var/run/docker.sock alizkan/jet-factory:1.0.0
+            docker run --name jet --privileged --cap-add=ALL --device=/dev/fuse --security-opt apparmor:unconfined --rm -it -e DISTRO="$FEDORA" -v "$basepath":/root/linux -v /var/run/docker.sock:/var/run/docker.sock alizkan/jet-factory:1.0.0 /root/jetfactory -distro=${DISTRO} -skip
             exit 0
         ;;
         $GENTOO)

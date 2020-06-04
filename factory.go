@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/url"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
@@ -62,7 +63,7 @@ func DetectPackageManager(rootfs string) (packageManager []string, err error) {
 			if man == "zypper" || man == "dnf" || man == "yum" || man == "apt" {
 				packageManager = []string{man, "install", "-y"}
 			} else if man == "pacman" {
-				packageManager = []string{man, "-S", "--noconfirm"}
+				packageManager = []string{man, "-Syu", "--noconfirm", "--cachedir=/tmp"}
 			} else {
 				return nil, errors.New("Couldn't detect package manager")
 			}
@@ -193,52 +194,63 @@ func DownloadURLfromTags(srcURL, dst string) error {
 }
 
 // PrepareFiles : Prepare the filesystem for chroot
-func PrepareFiles(basePath, dlDir, disk string) (err error) {
-	srcURL, err := SelectVersion()
-	if err != nil {
+func PrepareFiles(basePath, dlDir string) (err error) {
+	if err = os.MkdirAll(basePath, 0755); err != nil {
 		return err
 	}
 
-	parsedURL := strings.Split(srcURL, "/")
-	image := parsedURL[len(parsedURL)-1]
+	if err = os.MkdirAll(dlDir, 0755); err != nil {
+		return err
+	}
 
-	if _, err := os.Stat(dlDir + image); os.IsNotExist(err) || force == true {
-		fmt.Println("Downloading rootfs !")
-		err = DownloadURLfromTags(srcURL, dlDir)
+	if !skip {
+		srcURL, err := SelectVersion()
 		if err != nil {
 			return err
 		}
+
+		parsedURL := strings.Split(srcURL, "/")
+		image := parsedURL[len(parsedURL)-1]
+
+		if _, err := os.Stat(dlDir + image); os.IsNotExist(err) || force == true {
+			fmt.Println("Downloading rootfs !")
+			err = DownloadURLfromTags(srcURL, dlDir)
+			if err != nil {
+				return err
+			}
+		}
+
+		if hekate {
+			if err := DownloadFile(hekateURL, dlDir+hekateZip); err != nil {
+				return err
+			}
+
+			if err := ExtractFiles(dlDir+hekateZip, dlDir); err != nil {
+				return err
+			}
+		}
+
+		if strings.Contains(dlDir+image, ".raw") {
+			if err := ExtractFiles(dlDir+image, dlDir); err != nil {
+				return err
+			}
+
+			image = image[0:strings.LastIndex(image, ".")]
+			if _, err := CopyFromDisk(dlDir+image, basePath); err != nil {
+				return err
+			}
+
+			if err := os.Remove(dlDir + image); err != nil {
+				return err
+			}
+
+		} else {
+			if err := ExtractFiles(dlDir+image, basePath); err != nil {
+				return err
+			}
+		}
 	}
 
-	if hekate {
-		if err := DownloadFile(hekateURL, dlDir+hekateZip); err != nil {
-			return err
-		}
-
-		if err := ExtractFiles(dlDir+hekateZip, basePath); err != nil {
-			return err
-		}
-	}
-
-	if strings.Contains(dlDir+image, ".raw") {
-		if err := ExtractFiles(dlDir+image, disk); err != nil {
-			return err
-		}
-
-		image = image[0:strings.LastIndex(image, ".")]
-		if _, err := CopyFromDisk(disk+image, disk); err != nil {
-			return err
-		}
-
-		if err := os.Remove(disk + image); err != nil {
-			return err
-		}
-
-	} else {
-		if err := ExtractFiles(dlDir+image, disk); err != nil {
-			return err
-		}
-	}
 	return nil
 }
 
@@ -250,7 +262,7 @@ func InstallPackagesInChrootEnv(path string) error {
 	}
 
 	if distribution.Name == "arch" {
-		err := SpawnContainer([]string{"arch-chroot", path, "pacman-key", "--init"}, nil, path)
+		err = SpawnContainer([]string{"arch-chroot", path, "pacman-key", "--init"}, nil, path)
 		if err != nil {
 			return err
 		}
@@ -260,15 +272,24 @@ func InstallPackagesInChrootEnv(path string) error {
 			return err
 		}
 
-		err = SpawnContainer([]string{"arch-chroot", path, "pacman", "-Syu"}, nil, path)
-		if err != nil {
-			return err
-		}
+		// if buildarch == "aarch64" {
+		// 	read, err := ioutil.ReadFile(path + "/etc/pacman.d/mirrorlist")
+		// 	if err != nil {
+		// 		return err
+		// 	}
+
+		// 	newContents := strings.Replace(string(read), "http://mirror.archlinuxarm.org", "http://de.mirror.archlinuxarm.org", -1)
+
+		// 	err = ioutil.WriteFile(path+"/etc/pacman.d/mirrorlist", []byte(newContents), 0)
+		// 	if err != nil {
+		// 		return err
+		// 	}
+		// }
 	}
 
 	if isVariant {
 		for _, pkg := range variant.Packages {
-			err := SpawnContainer([]string{"arch-chroot", path, packageManager[0], packageManager[1], packageManager[2], pkg}, nil, path)
+			err := SpawnContainer([]string{"arch-chroot", path, packageManager[0], packageManager[1], packageManager[2], packageManager[3], pkg}, nil, path)
 			if err != nil {
 				return err
 			}
@@ -276,7 +297,7 @@ func InstallPackagesInChrootEnv(path string) error {
 	}
 
 	for _, pkg := range distribution.Packages {
-		err = SpawnContainer([]string{"arch-chroot", path, packageManager[0], packageManager[1], packageManager[2], pkg}, nil, path)
+		err = SpawnContainer([]string{"arch-chroot", path, packageManager[0], packageManager[1], packageManager[2], packageManager[3], pkg}, nil, path)
 		if err != nil {
 			return err
 		}
@@ -289,14 +310,30 @@ func InstallPackagesInChrootEnv(path string) error {
 func ApplyConfigsInChrootEnv(path string) error {
 	if isVariant {
 		for _, config := range variant.Configs {
-			if err := SpawnContainer([]string{"arch-chroot", path, config}, nil, path); err != nil {
+			var args string
+			command := strings.Split(config, " ")
+			if len(command) < 2 {
+				args = ""
+			}
+			for _, arg := range command {
+				args += arg + " "
+			}
+			if err := SpawnContainer([]string{"arch-chroot", path, command[0], args}, nil, path); err != nil {
 				return err
 			}
 		}
 	}
 
 	for _, config := range distribution.Configs {
-		if err := SpawnContainer([]string{"arch-chroot", path, config}, nil, path); err != nil {
+		var args string
+		command := strings.Split(config, " ")
+		if len(command) < 2 {
+			args = ""
+		}
+		for _, arg := range command {
+			args += arg + " "
+		}
+		if err := SpawnContainer([]string{"arch-chroot", path, command[0], args}, nil, path); err != nil {
 			return err
 		}
 	}
@@ -305,28 +342,28 @@ func ApplyConfigsInChrootEnv(path string) error {
 }
 
 // Hekate : Create a Hekate installable filesystem
-func Hekate(dlDir, basePath, imageFile, distro, disk string) error {
-	if err := Copy(basePath+hekateBin, disk+"/lib/firmware/reboot_payload.bin"); err != nil {
+func Hekate(dlDir, basePath, imageFile, distro string) error {
+	if err := Copy(dlDir+hekateBin, basePath+"/lib/firmware/reboot_payload.bin"); err != nil {
 		return err
 	}
 
-	if _, err := CopyToDisk(imageFile, disk); err != nil {
+	if _, err := CopyToDisk(imageFile, basePath); err != nil {
 		return err
 	}
 
-	if err := CopyDirectory(disk+"/boot/bootloader", basePath); err != nil {
+	if err := CopyDirectory(basePath+"/boot/bootloader", basePath); err != nil {
 		return err
 	}
 
-	if err := CopyDirectory(disk+"/boot/switchroot", basePath); err != nil {
+	if err := CopyDirectory(basePath+"/boot/switchroot", basePath); err != nil {
 		return err
 	}
 
-	if err := os.RemoveAll(disk + "/boot/bootloader"); err != nil {
+	if err := os.RemoveAll(basePath + "/boot/bootloader"); err != nil {
 		return err
 	}
 
-	if err := os.RemoveAll(disk + "/boot/switchroot"); err != nil {
+	if err := os.RemoveAll(basePath + "/boot/switchroot"); err != nil {
 		return err
 	}
 
@@ -367,69 +404,87 @@ func Factory(distro string) (err error) {
 	basePath := "/root/linux/" + distro
 
 	if !isAndroid {
-		disk := basePath + "/disk/"
-		dlDir := basePath + "/downloadedFiles/"
+		dlDir := "/root/linux/downloadedFiles/"
 
 		if archi := IsValidArchitecture(); archi == nil {
 			return err
 		}
 
-		if err = os.MkdirAll(disk, 0755); err != nil {
+		if err := PrepareFiles(basePath, dlDir); err != nil {
+			log.Println(err)
 			return err
-		}
-
-		if err = os.MkdirAll(dlDir, 0755); err != nil {
-			return err
-		}
-		if !skip {
-			if err := PrepareFiles(basePath, dlDir, disk); err != nil {
-				return err
-			}
 		}
 
 		if err = BinfmtSupport(); err != nil {
 			return err
 		}
 
-		err = PreChroot(disk)
+		err = PreChroot(basePath)
 		if err != nil {
-			return err
-		}
-
-		if err := InstallPackagesInChrootEnv(disk); err != nil {
 			log.Println(err)
 			return err
 		}
 
-		if err := ApplyConfigsInChrootEnv(disk); err != nil {
+		var walkFn = func(file string, info os.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
+
+			if info.IsDir() && info.Name() == "dev" {
+				return filepath.SkipDir
+			}
+
+			if info.IsDir() && info.Name() == "proc" {
+				return filepath.SkipDir
+			}
+
+			if info.IsDir() && info.Name() == "sys" {
+				return filepath.SkipDir
+			}
+
+			if !info.IsDir() {
+				if err := os.Chmod(file, 0755); err != nil {
+					fmt.Println(err)
+				}
+			}
+
+			return nil
+		}
+
+		if err = filepath.Walk(basePath, walkFn); err != nil {
+			return err
+		}
+
+		if err := InstallPackagesInChrootEnv(basePath); err != nil {
+			log.Println(err)
+			return err
+		}
+
+		if err := ApplyConfigsInChrootEnv(basePath); err != nil {
 			log.Println(err)
 			return err
 		}
 
 		if isVariant {
-			if _, err := CreateDisk(variant.Name, disk, basePath, "ext4"); err != nil {
+			if _, err := CreateDisk(variant.Name, basePath, basePath, "ext4"); err != nil {
 				return err
 			}
 			imageFile = basePath + "/" + variant.Name + ".img"
 		} else {
-			if _, err := CreateDisk(distribution.Name, disk, basePath, "ext4"); err != nil {
+			if _, err := CreateDisk(distribution.Name, basePath, basePath, "ext4"); err != nil {
 				return err
 			}
 			imageFile = basePath + "/" + distribution.Name + ".img"
 		}
 
 		if hekate {
-			if err := Hekate(dlDir, basePath, imageFile, distro, disk); err != nil {
+			if err := Hekate(dlDir, basePath, imageFile, distro); err != nil {
 				return err
 			}
 		} else {
-			if _, err := CopyToDisk(imageFile, disk); err != nil {
+			if _, err := CopyToDisk(imageFile, basePath); err != nil {
 				return err
 			}
-		}
-		err = os.RemoveAll(disk)
-		if err != nil {
-			return err
 		}
 		fmt.Println("\nDone!")
 	} else {
