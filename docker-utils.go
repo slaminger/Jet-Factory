@@ -9,7 +9,6 @@ import (
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/api/types/mount"
 	"github.com/docker/docker/client"
 )
 
@@ -68,13 +67,6 @@ func SpawnContainer(cmd, env []string, volume string) error {
 		AttachStdout: true,
 		AttachStderr: true,
 	}, &container.HostConfig{
-		Mounts: []mount.Mount{
-			{
-				Type:   mount.TypeBind,
-				Source: "/var/run/docker.sock",
-				Target: "/var/run/docker.sock",
-			},
-		},
 		Privileged:  true,
 		VolumesFrom: []string{"jet"},
 	}, nil, "")
