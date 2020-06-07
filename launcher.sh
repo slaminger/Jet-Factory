@@ -18,13 +18,16 @@ ARCH3="arch-bang"
 FEDORA="fedora"
 GENTOO="gentoo"
 UBUNTU="ubuntu"
+SUSE="opensuse"
+TUMBLE="tumbleweed"
+LEAP="leap"
 LINEAGE="lineage (defaults to icosa)"
 ICOSA="icosa"
 FOSTER="foster"
 FOSTER_TAB="foster_tab"
 
 
-select distro in "$ARCH1" "$ARCH2" "$ARCH3" "$FEDORA" "$GENTOO" "$UBUNTU" "$LINEAGE" "$ICOSA" "$FOSTER" "$FOSTER_TAB"
+select distro in "$ARCH1" "$ARCH2" "$ARCH3" "$FEDORA" "$GENTOO" "$UBUNTU" "$SUSE" "$TUMBLE" "$LEAP" "$LINEAGE" "$ICOSA" "$FOSTER" "$FOSTER_TAB"
 do   
     docker build -t alizkan/jet-factory:1.0.0 .
     case $distro in
@@ -45,7 +48,7 @@ do
         ;;
         $FEDORA)
             echo -e "\nBuilding $FEDORA"
-            docker run --name jet --privileged --cap-add=ALL --device=/dev/fuse --security-opt apparmor:unconfined --rm -it -e DISTRO="$FEDORA" -v "$basepath":/root/linux -v /var/run/docker.sock:/var/run/docker.sock alizkan/jet-factory:1.0.0 /root/jetfactory -distro=${DISTRO} -skip
+            docker run --name jet --privileged --cap-add=ALL --device=/dev/fuse --security-opt apparmor:unconfined --rm -it -e DISTRO="$FEDORA" -v "$basepath":/root/linux -v /var/run/docker.sock:/var/run/docker.sock alizkan/jet-factory:1.0.0
             exit 0
         ;;
         $GENTOO)
@@ -58,24 +61,39 @@ do
             docker run --name jet --privileged --cap-add=ALL --device=/dev/fuse --security-opt apparmor:unconfined --rm -it -e DISTRO="$UBUNTU" -v "$basepath":/root/linux -v /var/run/docker.sock:/var/run/docker.sock alizkan/jet-factory:1.0.0
             exit 0
         ;;
+        $SUSE)
+            echo -e "\nBuilding $SUSE"
+            docker run --name jet --privileged --cap-add=ALL --device=/dev/fuse --security-opt apparmor:unconfined --rm -it -e DISTRO="$LEAP" -v "$basepath":/root/linux -v /var/run/docker.sock:/var/run/docker.sock alizkan/jet-factory:1.0.0
+            exit 0
+        ;;
+        $TUMBLE)
+            echo -e "\nBuilding $TUMBLE"
+            docker run --name jet --privileged --cap-add=ALL --device=/dev/fuse --security-opt apparmor:unconfined --rm -it -e DISTRO="$TUMBLE" -v "$basepath":/root/linux -v /var/run/docker.sock:/var/run/docker.sock alizkan/jet-factory:1.0.0
+            exit 0
+        ;;
+        $LEAP)
+            echo -e "\nBuilding $LEAP"
+            docker run --name jet --privileged --cap-add=ALL --device=/dev/fuse --security-opt apparmor:unconfined --rm -it -e DISTRO="$LEAP" -v "$basepath":/root/linux -v /var/run/docker.sock:/var/run/docker.sock alizkan/jet-factory:1.0.0
+            exit 0
+        ;;
         $LINEAGE)
             echo -e "\nBuilding $ICOSA"
-            docker run --name jet --privileged --cap-add=ALL --device=/dev/fuse --security-opt apparmor:unconfined --privileged --rm -it -e DISTRO="$ICOSA" -v "$basepath":/root/linux -v /var/run/docker.sock:/var/run/docker.sock alizkan/jet-factory:1.0.0
+            docker run --name jet --privileged --cap-add=ALL --device=/dev/fuse --security-opt apparmor:unconfined --rm -it -e DISTRO="$ICOSA" -v "$basepath":/root/android -v /var/run/docker.sock:/var/run/docker.sock alizkan/jet-factory:1.0.0
             exit 0
         ;;
         $ICOSA)
             echo -e "\nBuilding $ICOSA"
-            docker run --name jet --privileged --cap-add=ALL --device=/dev/fuse --security-opt apparmor:unconfined --privileged --rm -it -e DISTRO="$ICOSA" -v "$basepath":/root/linux -v /var/run/docker.sock:/var/run/docker.sock alizkan/jet-factory:1.0.0
+            docker run --name jet --privileged --cap-add=ALL --device=/dev/fuse --security-opt apparmor:unconfined --rm -it -e DISTRO="$ICOSA" -v "$basepath":/root/android -v /var/run/docker.sock:/var/run/docker.sock alizkan/jet-factory:1.0.0
             exit 0
         ;;
         $FOSTER)
             echo -e "\nBuilding $FOSTER"
-            docker run --name jet --privileged --cap-add=ALL --device=/dev/fuse --security-opt apparmor:unconfined --privileged --rm -it -e DISTRO="$FOSTER" -v "$basepath":/root/linux -v /var/run/docker.sock:/var/run/docker.sock alizkan/jet-factory:1.0.0
+           docker run --name jet --privileged --cap-add=ALL --device=/dev/fuse --security-opt apparmor:unconfined --rm -it -e DISTRO="$FOSTER" -v "$basepath":/root/android -v /var/run/docker.sock:/var/run/docker.sock alizkan/jet-factory:1.0.0
             exit 0
         ;;
         $FOSTER_TAB)
-            echo "\nBuilding $FOSTER_TAB"
-            docker run --name jet --privileged --cap-add=ALL --device=/dev/fuse --security-opt apparmor:unconfined --privileged --rm -it -e DISTRO="$FOSTER_TAB" -v "$basepath":/root/linux -v /var/run/docker.sock:/var/run/docker.sock alizkan/jet-factory:1.0.0
+            echo -e "\nBuilding $FOSTER_TAB"
+            docker run --name jet --privileged --cap-add=ALL --device=/dev/fuse --security-opt apparmor:unconfined --rm -it -e DISTRO="$FOSTER_TAB" -v "$basepath":/root/android -v /var/run/docker.sock:/var/run/docker.sock alizkan/jet-factory:1.0.0
             exit 0
         ;;
         *) 

@@ -14,6 +14,7 @@ import (
 
 // BinfmtSupport :
 func BinfmtSupport() error {
+	dockerImageName = "docker.io/multiarch/qemu-user-static:register"
 	ctx := context.Background()
 	cli, err := client.NewClient(client.DefaultDockerHost, client.DefaultVersion, nil, map[string]string{"Content-Type": "application/json"})
 	if err != nil {
@@ -27,7 +28,7 @@ func BinfmtSupport() error {
 	io.Copy(os.Stdout, reader)
 
 	resp, err := cli.ContainerCreate(ctx, &container.Config{
-		Image: "docker.io/multiarch/qemu-user-static:register",
+		Image: dockerImageName,
 	}, &container.HostConfig{
 		Privileged: true,
 	}, nil, "")
@@ -46,7 +47,7 @@ func BinfmtSupport() error {
 }
 
 // SpawnContainer : Spawns a container based on dockerImageName
-func SpawnContainer(cmd, env []string, volume string) error {
+func SpawnContainer(cmd, env []string) error {
 	ctx := context.Background()
 	cli, err := client.NewClient(client.DefaultDockerHost, client.DefaultVersion, nil, map[string]string{"Content-Type": "application/json"})
 	if err != nil {
@@ -59,6 +60,14 @@ func SpawnContainer(cmd, env []string, volume string) error {
 	}
 	io.Copy(os.Stdout, reader)
 
+	config := &container.HostConfig{
+		Privileged:  true,
+		VolumesFrom: []string{"jet"},
+		// RestartPolicy: container.RestartPolicy{
+		// 	Name: "on-failure",
+		// },
+	}
+
 	resp, err := cli.ContainerCreate(ctx, &container.Config{
 		Image:        dockerImageName,
 		Cmd:          cmd,
@@ -66,10 +75,7 @@ func SpawnContainer(cmd, env []string, volume string) error {
 		Tty:          true,
 		AttachStdout: true,
 		AttachStderr: true,
-	}, &container.HostConfig{
-		Privileged:  true,
-		VolumesFrom: []string{"jet"},
-	}, nil, "")
+	}, config, nil, "")
 	if err != nil {
 		return err
 	}

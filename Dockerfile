@@ -14,5 +14,5 @@ RUN go build
 
 ARG DISTRO
 ENV DISTRO=${DISTRO}
-VOLUME [ "/root/linux" ]
+VOLUME [ "/root/linux", "/root/android" ]
 CMD /root/jetfactory -distro=${DISTRO}
