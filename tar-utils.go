@@ -17,11 +17,13 @@ import (
 // ExtractFiles :
 func ExtractFiles(archivePath, dst string) (err error) {
 	fmt.Println("\nExtracting:", archivePath, "in:", dst)
-	if strings.Contains(archivePath, ".raw.xz") {
+
+	if strings.Contains(archivePath, ".xz") {
 		data, err := ioutil.ReadFile(archivePath)
 		if err != nil {
 			return err
 		}
+
 		r, err := xz.NewReader(bytes.NewReader(data), 0)
 		if err != nil {
 			return err
@@ -43,12 +45,15 @@ func ExtractFiles(archivePath, dst string) (err error) {
 		if err != nil {
 			return err
 		}
+
 	} else if strings.Contains(archivePath, ".tar.gz") || strings.Contains(archivePath, ".zip") || strings.Contains(archivePath, ".rar") {
 		data, err := ioutil.ReadFile(archivePath)
 		if err != nil {
 			return err
 		}
+
 		buffer := bytes.NewBuffer(data)
+
 		switch filepath.Ext(archivePath) {
 		case ".bz2":
 			err = extract.Bz2(context.Background(), buffer, dst, nil)
@@ -60,9 +65,11 @@ func ExtractFiles(archivePath, dst string) (err error) {
 			fmt.Println("Unknown error")
 			return err
 		}
+
 		if err != nil {
 			fmt.Println(archivePath, ": Should not fail: "+err.Error())
 		}
+
 	} else {
 		fmt.Println("\nCouldn't recognize archive type for:", archivePath)
 		return err

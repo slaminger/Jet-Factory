@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -9,7 +10,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strconv"
 	"syscall"
 	"time"
 
@@ -17,14 +17,14 @@ import (
 )
 
 // CreateDisk :
-func CreateDisk(disk, src, dst, format string) (*guestfs.GuestfsError, error) {
+func CreateDisk(src, dst, disk, format string) (*guestfs.GuestfsError, error) {
 	size := DirSizeMB(src)
-	rootSize := strconv.Itoa(int(size) + 256)
+	rootSize := int64(size) + 256
 	fmt.Println("Estimated size:", rootSize, "MB")
 
-	if err := ExecWrapper("dd", "of="+dst+"/"+disk+".img", "bs=1", "count=0", "seek="+rootSize+"M"); err != nil {
-		return nil, err
-	}
+	// if err := ExecWrapper("dd", "of="+dst+"/"+disk+".img", "bs=1", "count=0", "seek="+rootSize+"M"); err != nil {
+	// 	return nil, err
+	// }
 
 	g, errno := guestfs.Create()
 	if errno != nil {
@@ -32,15 +32,22 @@ func CreateDisk(disk, src, dst, format string) (*guestfs.GuestfsError, error) {
 	}
 	defer g.Close()
 
-	/* Set the trace flag so that we can see each libguestfs call. */
-	g.Set_trace(true)
+	f, ferr := os.Create(dst + "/" + disk + ".img")
+	if ferr != nil {
+		return nil, ferr
+	}
+	defer f.Close()
+
+	if ferr := f.Truncate(rootSize * 1024 * 1024); ferr != nil {
+		return nil, ferr
+	}
 
 	/* Attach the disk image to libguestfs. */
 	optargs := guestfs.OptargsAdd_drive{
 		Format_is_set:   true,
 		Format:          "raw",
 		Readonly_is_set: true,
-		Readonly:        false,
+		Readonly:        true,
 	}
 	if err := g.Add_drive(disk, &optargs); err != nil {
 		return err, nil
@@ -105,6 +112,8 @@ func CopyFromDisk(disk, dst string) (*guestfs.GuestfsError, error) {
 	if errno != nil {
 		return nil, errno
 	}
+	defer g.Close()
+
 	/* Attach the disk image read-only to libguestfs. */
 	optargs := guestfs.OptargsAdd_drive{
 		Format_is_set:   true,
@@ -127,19 +136,17 @@ func CopyFromDisk(disk, dst string) (*guestfs.GuestfsError, error) {
 		return err, nil
 	}
 
-	if len(roots) == 0 {
-		fmt.Println("\ninspect-vm: no operating systems found")
-		return err, nil
-	}
-
 	var root string
-	if len(roots) == 1 {
+	var ferr error
+	if len(roots) > 1 {
+		root, ferr = CliSelector("Select root partition to use:", roots)
+		if ferr != nil {
+			return nil, ferr
+		}
+	} else if len(roots) == 1 {
 		root = roots[0]
 	} else {
-		root, _ = CliSelector("Select root partition to use:", roots)
-		if root == "" {
-			return err, nil
-		}
+		return nil, errors.New("inspect-vm: no operating systems found for")
 	}
 
 	if err := g.Mount(root, "/"); err != nil {
@@ -150,9 +157,7 @@ func CopyFromDisk(disk, dst string) (*guestfs.GuestfsError, error) {
 		return err, nil
 	}
 
-	if err := g.Mount_local_run(); err != nil {
-		return err, nil
-	}
+	go g.Mount_local_run()
 
 	files, ok := filepath.Glob("/mnt/*")
 	if ok != nil {
@@ -160,25 +165,15 @@ func CopyFromDisk(disk, dst string) (*guestfs.GuestfsError, error) {
 	}
 
 	for _, dir := range files {
-		log.Println(dir)
 		if err := CopyDirectory(dir, dst); err != nil {
 			log.Println(err)
 		}
 	}
 
-	if err := g.Umount(root, nil); err != nil {
+	if err := g.Shutdown(); err != nil {
 		return err, nil
 	}
 
-	if err = g.Shutdown(); err != nil {
-		return err, nil
-	}
-
-	if err := g.Close(); err != nil {
-		return err, nil
-	}
-
-	fmt.Println("\nFinished copying files and folders")
 	return nil, nil
 }
 
@@ -188,12 +183,14 @@ func CopyToDisk(disk, src string) (*guestfs.GuestfsError, error) {
 	if errno != nil {
 		return nil, errno
 	}
+	defer g.Close()
+
 	/* Attach the disk image read-only to libguestfs. */
 	optargs := guestfs.OptargsAdd_drive{
 		Format_is_set:   true,
 		Format:          "raw",
 		Readonly_is_set: true,
-		Readonly:        true,
+		Readonly:        false,
 	}
 	if err := g.Add_drive(disk, &optargs); err != nil {
 		return err, nil
@@ -204,28 +201,7 @@ func CopyToDisk(disk, src string) (*guestfs.GuestfsError, error) {
 		return err, nil
 	}
 
-	/* Ask libguestfs to inspect for operating systems. */
-	roots, err := g.Inspect_os()
-	if err != nil {
-		return err, nil
-	}
-
-	if len(roots) == 0 {
-		fmt.Println("\ninspect-vm: no operating systems found")
-		return err, nil
-	}
-
-	var root string
-	if len(roots) == 1 {
-		root = roots[0]
-	} else {
-		root, _ = CliSelector("Select root partition to use:", roots)
-		if root == "" {
-			return err, nil
-		}
-	}
-
-	if err := g.Mount(root, "/"); err != nil {
+	if err := g.Mount(disk, "/"); err != nil {
 		return err, nil
 	}
 
@@ -241,18 +217,14 @@ func CopyToDisk(disk, src string) (*guestfs.GuestfsError, error) {
 		return nil, err
 	}
 
-	if err := g.Umount(root, nil); err != nil {
+	if err := g.Umount("/mnt", nil); err != nil {
 		return err, nil
 	}
 
-	if err = g.Shutdown(); err != nil {
+	if err := g.Shutdown(); err != nil {
 		return err, nil
 	}
 
-	if err := g.Close(); err != nil {
-		return err, nil
-	}
-	fmt.Println("\nFinished copying files and folders")
 	return nil, nil
 }
 
@@ -345,14 +317,9 @@ func CopyDirectory(scrDir, dest string) error {
 				return err
 			}
 		case os.ModeSymlink:
-			if err := CopySymLink(sourcePath, destPath); err != nil {
-				return err
-			}
+			CopySymLink(sourcePath, destPath)
 		default:
-			if err := Copy(sourcePath, destPath); err != nil {
-				log.Println(err)
-				return nil
-			}
+			Copy(sourcePath, destPath)
 		}
 
 		if err := os.Lchown(destPath, int(stat.Uid), int(stat.Gid)); err != nil {
@@ -361,9 +328,7 @@ func CopyDirectory(scrDir, dest string) error {
 
 		isSymlink := entry.Mode()&os.ModeSymlink != 0
 		if !isSymlink {
-			if err := os.Chmod(destPath, entry.Mode()); err != nil {
-				return err
-			}
+			os.Chmod(destPath, entry.Mode())
 		}
 	}
 	return nil

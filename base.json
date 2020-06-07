@@ -39,7 +39,8 @@
             "alsa-utils",
             "netctl",
             "dhcpcd",
-            "networkmanager"
+            "networkmanager",
+            "wget"
         ]
     },
     {
@@ -80,22 +81,28 @@
         ]
     },
     {
-        "name": "tumbleweed",
-        "buildarch": {
-            "aarch64": []
-        },
-        "configs": [],
-        "packages": []
-    },
-    {
-        "name": "leap",
-        "buildarch": {
-            "aarch64": [
-                "http://download.opensuse.org/ports/aarhc64/distribution/leap/{VERSION}/appliances/"
-            ]
-        },
-        "configs": [],
-        "packages": []
+        "name": "opensuse",
+        "variants":
+        [
+            {
+                "name": "tumbleweed",
+                "buildarch": {
+                    "aarch64": []
+                },
+                "configs": [],
+                "packages": []
+            },
+            {
+                "name": "leap",
+                "buildarch": {
+                    "aarch64": [
+                        "http://download.opensuse.org/ports/aarhc64/distribution/leap/{VERSION}/appliances/"
+                    ]
+                },
+                "configs": [],
+                "packages": []
+            }
+        ]
     },
     {
         "name": "ubuntu",
@@ -116,24 +123,30 @@
         "packages": []
     },
     {
-        "name": "icosa",
-        "buildarch": {
-            "aarch64": []
-        },
-        "configs": []
-    },
-    {
-        "name": "foster",
-        "buildarch": {
-            "aarch64": []
-        },
-        "configs": []
-    },
-    {
-        "name": "foster_tab",
-        "buildarch": {
-            "aarch64": []
-        },
-        "configs": []
+        "name": "lineage",
+        "variants" : 
+        [
+            {
+                "name": "icosa",
+                "buildarch": {
+                    "aarch64": []
+                },
+                "configs": []
+            },
+            {
+                "name": "foster",
+                "buildarch": {
+                    "aarch64": []
+                },
+                "configs": []
+            },
+            {
+                "name": "foster_tab",
+                "buildarch": {
+                    "aarch64": []
+                },
+                "configs": []
+            }
+        ]
     }
 ]

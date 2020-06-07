@@ -31,41 +31,6 @@ func PreChroot(path string) error {
 		return err
 	}
 
-	if err = os.Remove(path + "/etc/mtab"); err != nil {
-		return err
-	}
-
-	if err = mount.Mount(path, path, "bind", "rbind,rw"); err != nil {
-		return err
-	}
-
-	if err = mount.Mount("/sys", path+"/sys", "bind", "rbind"); err != nil {
-		return err
-	}
-
-	if err = mount.Mount("/dev", path+"/dev", "bind", "rbind"); err != nil {
-		return err
-	}
-
-	if err = mount.Mount("/run", path+"/run", "bind", "rbind"); err != nil {
-		return err
-	}
-
-	if distribution.Name == "arch" {
-		if err = os.MkdirAll(path+"/var/cache/pacman/pkg", 0755); err != nil {
-			return err
-		}
-		if err = os.MkdirAll(path+"/var/lib/pacman", 0755); err != nil {
-			return err
-		}
-		if err = os.MkdirAll(path+"/var/log", 0755); err != nil {
-			return err
-		}
-		if err = os.MkdirAll(path+"/tmp/", 1777); err != nil {
-			return err
-		}
-	}
-
 	return nil
 }
 
