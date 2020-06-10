@@ -20,7 +20,8 @@ type (
 	// Distribution : Represent a distribution conatining a name, version, desktop environment and an optional list of packages
 	Distribution struct {
 		Name          string              `json:"name"`
-		Configs       []string            `json:"configs"`
+		Pre           []string            `json:"pre"`
+		Post          []string            `json:"post"`
 		Packages      []string            `json:"packages"`
 		Architectures map[string][]string `json:"buildarch"`
 		Variants      []Variant           `json:"variants"`
@@ -29,7 +30,8 @@ type (
 	// Variant : Represent a distribution variant
 	Variant struct {
 		Name     string   `json:"name"`
-		Configs  []string `json:"configs"`
+		Pre      []string `json:"pre"`
+		Post     []string `json:"post"`
 		Packages []string `json:"packages"`
 	}
 )
@@ -75,13 +77,13 @@ func SetDistro(name string) (err error) {
 	// Check/ if name match a known distribution
 	for i := 0; i < len(basesDistro); i++ {
 		if name == basesDistro[i].Name {
-			distribution = Distribution{Name: basesDistro[i].Name, Architectures: basesDistro[i].Architectures, Configs: basesDistro[i].Configs, Packages: basesDistro[i].Packages}
+			distribution = Distribution{Name: basesDistro[i].Name, Architectures: basesDistro[i].Architectures, Pre: basesDistro[i].Pre, Post: basesDistro[i].Post, Packages: basesDistro[i].Packages}
 			return nil
 		}
 		for j := 0; j < len(basesDistro[i].Variants); j++ {
 			if name == basesDistro[i].Variants[j].Name {
 				isVariant = true
-				variant = Variant{Name: basesDistro[i].Variants[j].Name}
+				variant = Variant{Name: basesDistro[i].Variants[j].Name, Packages: basesDistro[i].Variants[j].Packages, Pre: basesDistro[i].Variants[j].Pre, Post: basesDistro[i].Variants[j].Post}
 				return nil
 			}
 		}
@@ -293,10 +295,10 @@ func InstallPackagesInChrootEnv(path string) error {
 	return nil
 }
 
-// ApplyConfigsInChrootEnv : Runs one or multiple command in a chroot environment; Returns nil if successful
-func ApplyConfigsInChrootEnv(path string) error {
+// PreConfigRootfs : Runs one or multiple command in a chroot environment; Returns nil if successful
+func PreConfigRootfs(path string) error {
 	if isVariant {
-		for _, config := range variant.Configs {
+		for _, config := range variant.Pre {
 			var args string
 			command := strings.Split(config, " ")
 			if len(command) < 2 {
@@ -311,7 +313,42 @@ func ApplyConfigsInChrootEnv(path string) error {
 		}
 	}
 
-	for _, config := range distribution.Configs {
+	for _, config := range distribution.Pre {
+		var args string
+		command := strings.Split(config, " ")
+		if len(command) < 2 {
+			args = ""
+		}
+		for _, arg := range command {
+			args += arg + " "
+		}
+		if err := SpawnContainer([]string{"arch-chroot", path, command[0], args}, nil); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// PostConfigRootfs : Runs one or multiple command in a chroot environment; Returns nil if successful
+func PostConfigRootfs(path string) error {
+	if isVariant {
+		for _, config := range variant.Post {
+			var args string
+			command := strings.Split(config, " ")
+			if len(command) < 2 {
+				args = ""
+			}
+			for _, arg := range command {
+				args += arg + " "
+			}
+			if err := SpawnContainer([]string{"arch-chroot", path, command[0], args}, nil); err != nil {
+				return err
+			}
+		}
+	}
+
+	for _, config := range distribution.Post {
 		var args string
 		command := strings.Split(config, " ")
 		if len(command) < 2 {
@@ -454,12 +491,16 @@ func Factory(distro string) (err error) {
 		return err
 	}
 
+	if err := PreConfigRootfs(basePath); err != nil {
+		return err
+	}
+
 	if err := InstallPackagesInChrootEnv(basePath); err != nil {
 		log.Println(err)
 		return err
 	}
 
-	if err := ApplyConfigsInChrootEnv(basePath); err != nil {
+	if err := PostConfigRootfs(basePath); err != nil {
 		return err
 	}
 

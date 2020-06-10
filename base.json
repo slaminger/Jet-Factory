@@ -4,12 +4,14 @@
         "variants": [
             {
                 "name": "arch-bang",
-                "configs": [],
+                "pre": [],
+                "post": [],
                 "packages": []
             },
             {
                 "name": "blackarch",
-                "configs": [],
+                "pre": [],
+                "post": [],
                 "packages": []
             }
         ],
@@ -18,7 +20,8 @@
                 "http://de3.mirror.archlinuxarm.org/os/ArchLinuxARM-aarch64-latest.tar.gz"
             ]
         },
-        "configs": [
+        "pre": [],
+        "post": [
             "wget https://raw.githubusercontent.com/Azkali/L4T-Packages-Repository/master/build-stage2-arch.sh",
             "bash build-stage2-arch.sh"
         ],
@@ -51,8 +54,10 @@
                 "https://download.fedoraproject.org/pub/fedora/linux/releases/{VERSION}/Server/aarch64/images/"
             ]
         },
-        "configs": [
-            "wget -O - https://raw.githubusercontent.com/Azkali/L4T-Packages-Repository/master/build-stage2-fedora.sh | bash"
+        "pre": [],
+        "post": [
+            "wget https://raw.githubusercontent.com/Azkali/L4T-Packages-Repository/master/build-stage2-fedora.sh",
+            "bash build-stage2-arch.sh"
         ],
         "packages": [
             "lightdm",
@@ -82,14 +87,14 @@
     },
     {
         "name": "opensuse",
-        "variants":
-        [
+        "variants": [
             {
                 "name": "tumbleweed",
                 "buildarch": {
                     "aarch64": []
                 },
-                "configs": [],
+                "pre": [],
+                "post": [],
                 "packages": []
             },
             {
@@ -99,7 +104,8 @@
                         "http://download.opensuse.org/ports/aarhc64/distribution/leap/{VERSION}/appliances/"
                     ]
                 },
-                "configs": [],
+                "pre": [],
+                "post": [],
                 "packages": []
             }
         ]
@@ -111,7 +117,8 @@
                 "https://developer.nvidia.com/embedded/L4T/r32_Release_v4.2/t210ref_release_aarch64/Tegra_Linux_Sample-Root-Filesystem_R32.4.2_aarch64.tbz2"
             ]
         },
-        "configs": [],
+        "pre": [],
+        "post": [],
         "packages": []
     },
     {
@@ -119,33 +126,36 @@
         "buildarch": {
             "aarch64": []
         },
-        "configs": [],
+        "pre": [],
+        "post": [],
         "packages": []
     },
     {
         "name": "lineage",
-        "variants" : 
-        [
+        "variants": [
             {
                 "name": "icosa",
                 "buildarch": {
                     "aarch64": []
                 },
-                "configs": []
+                "pre": [],
+                "post": []
             },
             {
                 "name": "foster",
                 "buildarch": {
                     "aarch64": []
                 },
-                "configs": []
+                "pre": [],
+                "post": []
             },
             {
                 "name": "foster_tab",
                 "buildarch": {
                     "aarch64": []
                 },
-                "configs": []
+                "pre": [],
+                "post": []
             }
         ]
     }
