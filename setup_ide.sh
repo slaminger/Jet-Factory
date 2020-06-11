@@ -38,7 +38,6 @@ function doSetup()
     installDependency "git"
     installDependency "curl"
     installDependency "docker.io"
-    installDependency "golang-1.14"
 
     #Install IDE - Code Server
     bashCommand "curl -fsSL https://code-server.dev/install.sh | sh"
