@@ -117,8 +117,8 @@
                 "https://developer.nvidia.com/embedded/L4T/r32_Release_v4.2/t210ref_release_aarch64/Tegra_Linux_Sample-Root-Filesystem_R32.4.2_aarch64.tbz2"
             ]
         },
-        "pre": [],
-        "post": [],
+        "pre": ["./build.sh --pre"],
+        "post": ["./build.sh --post"],
         "packages": []
     },
     {

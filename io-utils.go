@@ -38,7 +38,8 @@ func CreateDisk(src, dst, disk, format string) (*guestfs.GuestfsError, error) {
 	}
 	defer f.Close()
 
-	if ferr := f.Truncate(rootSize * 1024 * 1024); ferr != nil {
+	ferr = f.Truncate(rootSize * 1024 * 1024)
+	if ferr != nil {
 		return nil, ferr
 	}
 
@@ -49,11 +50,14 @@ func CreateDisk(src, dst, disk, format string) (*guestfs.GuestfsError, error) {
 		Readonly_is_set: true,
 		Readonly:        true,
 	}
-	if err := g.Add_drive(disk, &optargs); err != nil {
+	err := g.Add_drive(disk, &optargs)
+	if err != nil {
 		return err, nil
 	}
+
 	/* Run the libguestfs back-end. */
-	if err := g.Launch(); err != nil {
+	err = g.Launch()
+	if err != nil {
 		return err, nil
 	}
 
@@ -121,12 +125,14 @@ func CopyFromDisk(disk, dst string) (*guestfs.GuestfsError, error) {
 		Readonly_is_set: true,
 		Readonly:        true,
 	}
-	if err := g.Add_drive(disk, &optargs); err != nil {
+	err := g.Add_drive(disk, &optargs)
+	if err != nil {
 		return err, nil
 	}
 
 	/* Run the libguestfs back-end. */
-	if err := g.Launch(); err != nil {
+	err = g.Launch()
+	if err != nil {
 		return err, nil
 	}
 
@@ -149,11 +155,13 @@ func CopyFromDisk(disk, dst string) (*guestfs.GuestfsError, error) {
 		return nil, errors.New("inspect-vm: no operating systems found for")
 	}
 
-	if err := g.Mount(root, "/"); err != nil {
+	err = g.Mount(root, "/")
+	if err != nil {
 		return err, nil
 	}
 
-	if err := g.Mount_local("/mnt", nil); err != nil {
+	err = g.Mount_local("/mnt", nil)
+	if err != nil {
 		return err, nil
 	}
 
@@ -170,7 +178,8 @@ func CopyFromDisk(disk, dst string) (*guestfs.GuestfsError, error) {
 		}
 	}
 
-	if err := g.Shutdown(); err != nil {
+	err = g.Shutdown()
+	if err != nil {
 		return err, nil
 	}
 
@@ -192,36 +201,36 @@ func CopyToDisk(disk, src string) (*guestfs.GuestfsError, error) {
 		Readonly_is_set: true,
 		Readonly:        false,
 	}
-	if err := g.Add_drive(disk, &optargs); err != nil {
+	err := g.Add_drive(disk, &optargs)
+	if err != nil {
 		return err, nil
 	}
 
 	/* Run the libguestfs back-end. */
-	if err := g.Launch(); err != nil {
+	err = g.Launch()
+	if err != nil {
 		return err, nil
 	}
 
-	if err := g.Mount(disk, "/"); err != nil {
+	err = g.Mount(disk, "/")
+	if err != nil {
 		return err, nil
 	}
 
-	if err := g.Mount_local("/mnt", nil); err != nil {
+	err = g.Mount_local("/mnt", nil)
+	if err != nil {
 		return err, nil
 	}
 
-	if err := g.Mount_local_run(); err != nil {
-		return err, nil
+	go g.Mount_local_run()
+
+	errno = CopyDirectory(src, "/mnt/")
+	if err != nil {
+		return nil, errno
 	}
 
-	if err := CopyDirectory(src, "/mnt/"); err != nil {
-		return nil, err
-	}
-
-	if err := g.Umount("/mnt", nil); err != nil {
-		return err, nil
-	}
-
-	if err := g.Shutdown(); err != nil {
+	err = g.Shutdown()
+	if err != nil {
 		return err, nil
 	}
 

@@ -218,26 +218,26 @@ func PrepareFiles(basePath, dlDir string) (err error) {
 		}
 
 		if hekate {
-			if err := DownloadFile(hekateURL, dlDir+hekateZip); err != nil {
+			if err := DownloadFile(hekateURL, dlDir+"/"+hekateZip); err != nil {
 				return err
 			}
 
-			if err := ExtractFiles(dlDir+hekateZip, dlDir); err != nil {
+			if err := ExtractFiles(dlDir+"/"+hekateZip, dlDir); err != nil {
 				return err
 			}
 		}
 
-		if err := ExtractFiles(dlDir+image, dlDir); err != nil {
+		if err := ExtractFiles(dlDir+"/"+image, basePath); err != nil {
 			return err
 		}
 
-		if strings.Contains(dlDir+image, ".xz") {
+		if strings.Contains(basePath+"/"+image, ".raw") {
 			image = image[0:strings.LastIndex(image, ".")]
-			if _, err := CopyFromDisk(dlDir+image, basePath); err != nil {
+			if _, err := CopyFromDisk(basePath+"/"+image, basePath); err != nil {
 				return err
 			}
 
-			if err = os.Remove(dlDir + image); err != nil {
+			if err = os.Remove(basePath + "/" + image); err != nil {
 				return err
 			}
 		}
@@ -450,16 +450,16 @@ func Factory(distro string) (err error) {
 	}
 
 	if err := PrepareFiles(basePath, dlDir); err != nil {
-		log.Println(err)
 		return err
 	}
 
-	if err = BinfmtSupport(); err != nil {
-		return err
-	}
+	// if err = BinfmtSupport(); err != nil {
+	// 	return err
+	// }
 
 	err = PreChroot(basePath)
 	if err != nil {
+		log.Println(err)
 		return err
 	}
 
