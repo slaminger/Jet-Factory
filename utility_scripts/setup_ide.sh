@@ -2,7 +2,7 @@
 
 CONTAINER_NAME="jet-factory-ide"
 WORKSPACE_DIRECTORY="//root/workspace"
-GIT_REPO_TO_CLONE="https://github.com/Azkali/Jet-Factory.git"
+GIT_REPO_TO_CLONE="https://github.com/qwertycody/Jet-Factory.git"
 IDE_PORT="9090"
 
 START_COMMAND="code-server --auth none --bind-addr 0.0.0.0:$IDE_PORT \"$WORKSPACE_DIRECTORY\" || tail -f /dev/null"
@@ -29,7 +29,7 @@ function doSetup()
                 --user root \
                 --workdir //root \
                 --name $CONTAINER_NAME \
-                debian:latest \
+                ubuntu:19.10 \
                 bash -c "$START_COMMAND"
 
     bashCommand "apt-get update"
@@ -38,6 +38,10 @@ function doSetup()
     installDependency "git"
     installDependency "curl"
     installDependency "docker.io"
+    installDependency "software-properties-common"
+    bashCommand "add-apt-repository ppa:longsleep/golang-backports -y"
+    bashCommand "apt-get update"
+    installDependency "golang-go"
 
     #Install IDE - Code Server
     bashCommand "curl -fsSL https://code-server.dev/install.sh | sh"
