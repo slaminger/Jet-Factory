@@ -9,4 +9,4 @@ SCRIPT_DIRECTORY=$(pwd)
 export DEBIAN_FRONTEND=noninteractive
 export DISTRO=""
 
-/root/jetfactory -distro="$DISTRO"
+./jetfactory -distro="$DISTRO"
