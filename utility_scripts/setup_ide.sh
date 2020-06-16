@@ -29,7 +29,7 @@ function doSetup()
                 --user root \
                 --workdir //root \
                 --name $CONTAINER_NAME \
-                debian:latest \
+                ubuntu:19.10 \
                 bash -c "$START_COMMAND"
 
     bashCommand "apt-get update"
@@ -38,6 +38,10 @@ function doSetup()
     installDependency "git"
     installDependency "curl"
     installDependency "docker.io"
+    installDependency "software-properties-common"
+    bashCommand "add-apt-repository ppa:longsleep/golang-backports -y"
+    bashCommand "apt-get update"
+    installDependency "golang-go"
 
     #Install IDE - Code Server
     bashCommand "curl -fsSL https://code-server.dev/install.sh | sh"
