@@ -4,12 +4,12 @@ import (
 	"encoding/json"
 	"errors"
 	"flag"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"net/url"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"time"
 
@@ -101,88 +101,17 @@ func IsValidArchitecture() (archi *string) {
 	return nil
 }
 
-// SelectDistro :
-func SelectDistro() (*string, error) {
-	var avalaibles []string
-	for _, baseDistro := range basesDistro {
-		for _, variantDistro := range baseDistro.Variants {
-			avalaibles = append(avalaibles, variantDistro.Name)
-		}
-		avalaibles = append(avalaibles, baseDistro.Name)
-	}
-
-	name, err := CliSelector("", avalaibles)
-	if err != nil {
-		return nil, err
-	}
-
-	return &name, nil
-}
-
-// SelectVersion : Retrieve a URL for a distribution based on a version
-func SelectVersion() (constructedURL string, err error) {
-	for _, avalaibleMirror := range distribution.Architectures[buildarch] {
-		constructedURL = avalaibleMirror
-
-		if strings.Contains(avalaibleMirror, "{VERSION}") {
-
-			constructedURL = strings.Split(avalaibleMirror, "/{VERSION}")[0]
-			versionBody := WalkURL(constructedURL)
-
-			search, _ := regexp.Compile(">:?([[:digit:]]{1,3}.[[:digit:]]+|[[:digit:]]+)(?:/)")
-			match := search.FindAllStringSubmatch(*versionBody, -1)
-			if match == nil {
-				return "", errors.New("Couldn't find any match for regex")
-			}
-
-			versions := make([]string, 0)
-			for i := 0; i < len(match); i++ {
-				for _, submatches := range match {
-					versions = append(versions, submatches[1])
-				}
-			}
-
-			version, err := CliSelector("Select a version: ", versions)
-			if err != nil {
-				return "", err
-			}
-
-			constructedURL = strings.Replace(avalaibleMirror, "{VERSION}", version, 1)
-			imageBody := WalkURL(constructedURL)
-
-			search, _ = regexp.Compile(">:?([[:alpha:]]+.*.raw.xz)")
-			imageMatch := search.FindAllStringSubmatch(*imageBody, -1)
-			images := make([]string, 0)
-			for i := 0; i < len(imageMatch); i++ {
-				for _, submatches := range imageMatch {
-					images = append(images, submatches[1])
-				}
-			}
-
-			var imageFile string
-			if len(images) > 1 {
-				imageFile, err = CliSelector("Select an image file: ", images)
-				if err != nil {
-					return "", err
-				}
-			} else if len(images) == 1 {
-				imageFile = images[0]
-			} else {
-				return "", err
-			}
-			constructedURL = strings.TrimSpace(constructedURL + imageFile)
-		}
-		return constructedURL, nil
-	}
-	return "", nil
-}
-
 // DownloadURLfromTags : Retrieve a URL for a distribution based on a version
 func DownloadURLfromTags(srcURL, dst string) error {
 	err := RetryFunction(5, 2*time.Second, func() (err error) {
 		_, err = url.ParseRequestURI(srcURL)
+		if err != nil {
+			return err
+		}
 		err = DownloadFile(srcURL, dst)
-
+		if err != nil {
+			return err
+		}
 		return
 	})
 	if err != nil {
@@ -210,6 +139,7 @@ func PrepareFiles(basePath, dlDir string) (err error) {
 
 		parsedURL := strings.Split(srcURL, "/")
 		image := parsedURL[len(parsedURL)-1]
+
 		if _, err := os.Stat(dlDir + image); os.IsNotExist(err) || force == true {
 			err = DownloadURLfromTags(srcURL, dlDir)
 			if err != nil {
@@ -218,31 +148,30 @@ func PrepareFiles(basePath, dlDir string) (err error) {
 		}
 
 		if hekate {
-			if err := DownloadFile(hekateURL, dlDir+hekateZip); err != nil {
+			if err := DownloadFile(hekateURL, dlDir+"/"+hekateZip); err != nil {
 				return err
 			}
 
-			if err := ExtractFiles(dlDir+hekateZip, dlDir); err != nil {
+			if err := ExtractFiles(dlDir+"/"+hekateZip, dlDir); err != nil {
 				return err
 			}
 		}
 
-		if err := ExtractFiles(dlDir+image, dlDir); err != nil {
+		if err := ExtractFiles(dlDir+"/"+image, basePath); err != nil {
 			return err
 		}
 
-		if strings.Contains(dlDir+image, ".xz") {
+		if strings.Contains(basePath+"/"+image, ".raw") {
 			image = image[0:strings.LastIndex(image, ".")]
-			if _, err := CopyFromDisk(dlDir+image, basePath); err != nil {
+			if _, err := CopyFromDisk(basePath+"/"+image, basePath); err != nil {
 				return err
 			}
 
-			if err = os.Remove(dlDir + image); err != nil {
+			if err = os.Remove(basePath + "/" + image); err != nil {
 				return err
 			}
 		}
 	}
-
 	return nil
 }
 
@@ -301,12 +230,17 @@ func PreConfigRootfs(path string) error {
 		for _, config := range variant.Pre {
 			var args string
 			command := strings.Split(config, " ")
-			if len(command) < 2 {
+
+			if len(command) < 1 {
+				fmt.Println("No configurration found for:", variant.Name)
+			} else if len(command) < 2 {
 				args = ""
+			} else {
+				for _, arg := range command {
+					args += arg + " "
+				}
 			}
-			for _, arg := range command {
-				args += arg + " "
-			}
+
 			if err := SpawnContainer([]string{"arch-chroot", path, command[0], args}, nil); err != nil {
 				return err
 			}
@@ -445,18 +379,23 @@ func Factory(distro string) (err error) {
 		return err
 	}
 
+	if buildarch == "" {
+		if err := SelectArchitecture(); err != nil {
+			return err
+		}
+	}
+
 	if archi := IsValidArchitecture(); archi == nil {
 		return err
 	}
 
 	if err := PrepareFiles(basePath, dlDir); err != nil {
-		log.Println(err)
 		return err
 	}
 
-	if err = BinfmtSupport(); err != nil {
-		return err
-	}
+	// if err = BinfmtSupport(); err != nil {
+	// 	return err
+	// }
 
 	err = PreChroot(basePath)
 	if err != nil {
@@ -496,7 +435,6 @@ func Factory(distro string) (err error) {
 	}
 
 	if err := InstallPackagesInChrootEnv(basePath); err != nil {
-		log.Println(err)
 		return err
 	}
 
@@ -522,6 +460,7 @@ func Factory(distro string) (err error) {
 		}
 	} else {
 		if _, err := CopyToDisk(imageFile, basePath); err != nil {
+			log.Println(err)
 			return err
 		}
 	}
@@ -531,10 +470,10 @@ func Factory(distro string) (err error) {
 func main() {
 	var distro string
 	flag.StringVar(&distro, "distro", "", "Distribution to build")
-	flag.StringVar(&buildarch, "archi", "aarch64", "Distribution to build")
+	flag.StringVar(&buildarch, "archi", "", "Distribution to build")
 
 	flag.BoolVar(&hekate, "hekate", false, "Build an hekate installable filesystem")
-	flag.BoolVar(&staging, "staging", false, "Install built local packages")
+	// flag.BoolVar(&staging, "staging", false, "Install built local packages")
 
 	flag.BoolVar(&skip, "skip", false, "Skip file prepare")
 	flag.BoolVar(&force, "force", false, "Force to redownload files")
