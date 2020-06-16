@@ -2,7 +2,7 @@
 
 CONTAINER_NAME="jet-factory-ide"
 WORKSPACE_DIRECTORY="//root/workspace"
-GIT_REPO_TO_CLONE="https://github.com/qwertycody/Jet-Factory.git"
+GIT_REPO_TO_CLONE="https://github.com/Azkali/Jet-Factory.git"
 IDE_PORT="9090"
 
 START_COMMAND="code-server --auth none --bind-addr 0.0.0.0:$IDE_PORT \"$WORKSPACE_DIRECTORY\" || tail -f /dev/null"
