@@ -21,18 +21,18 @@ func CreateDisk(src, dst, disk, format string) (*guestfs.GuestfsError, error) {
 	size := DirSizeMB(src)
 	rootSize := int64(size) + 256
 	fmt.Println("Estimated size:", rootSize, "MB")
-
-	// if err := ExecWrapper("dd", "of="+dst+"/"+disk+".img", "bs=1", "count=0", "seek="+rootSize+"M"); err != nil {
-	// 	return nil, err
-	// }
+	disk = dst + "/" + disk + ".img"
 
 	g, errno := guestfs.Create()
 	if errno != nil {
 		return nil, errno
 	}
-	defer g.Close()
+	defer func() {
+		g.Shutdown()
+		g.Close()
+	}()
 
-	f, ferr := os.Create(dst + "/" + disk + ".img")
+	f, ferr := os.Create(disk)
 	if ferr != nil {
 		return nil, ferr
 	}
@@ -98,15 +98,6 @@ func CreateDisk(src, dst, disk, format string) (*guestfs.GuestfsError, error) {
 		return err, nil
 	}
 
-	if err = g.Shutdown(); err != nil {
-		return err, nil
-	}
-
-	err = g.Close()
-	if err != nil {
-		return err, nil
-	}
-
 	return nil, nil
 }
 
@@ -116,23 +107,24 @@ func CopyFromDisk(disk, dst string) (*guestfs.GuestfsError, error) {
 	if errno != nil {
 		return nil, errno
 	}
-	defer g.Close()
+	defer func() {
+		g.Shutdown()
+		g.Close()
+	}()
 
 	/* Attach the disk image read-only to libguestfs. */
 	optargs := guestfs.OptargsAdd_drive{
 		Format_is_set:   true,
 		Format:          "raw",
 		Readonly_is_set: true,
-		Readonly:        true,
+		Readonly:        false,
 	}
-	err := g.Add_drive(disk, &optargs)
-	if err != nil {
+	if err := g.Add_drive(disk, &optargs); err != nil {
 		return err, nil
 	}
 
 	/* Run the libguestfs back-end. */
-	err = g.Launch()
-	if err != nil {
+	if err := g.Launch(); err != nil {
 		return err, nil
 	}
 
@@ -144,8 +136,9 @@ func CopyFromDisk(disk, dst string) (*guestfs.GuestfsError, error) {
 
 	var root string
 	var ferr error
+
 	if len(roots) > 1 {
-		root, ferr = CliSelector("Select root partition to use:", roots)
+		root, ferr = CliSelect("Select root partition to use:", roots)
 		if ferr != nil {
 			return nil, ferr
 		}
@@ -155,17 +148,17 @@ func CopyFromDisk(disk, dst string) (*guestfs.GuestfsError, error) {
 		return nil, errors.New("inspect-vm: no operating systems found for")
 	}
 
-	err = g.Mount(root, "/")
-	if err != nil {
+	if err := g.Mount(root, "/"); err != nil {
 		return err, nil
 	}
 
-	err = g.Mount_local("/mnt", nil)
-	if err != nil {
+	if err := g.Mount_local("/mnt", nil); err != nil {
 		return err, nil
 	}
 
 	go g.Mount_local_run()
+
+	go g.Sync()
 
 	files, ok := filepath.Glob("/mnt/*")
 	if ok != nil {
@@ -178,10 +171,9 @@ func CopyFromDisk(disk, dst string) (*guestfs.GuestfsError, error) {
 		}
 	}
 
-	err = g.Shutdown()
-	if err != nil {
-		return err, nil
-	}
+	go g.Umount_local(nil)
+
+	go g.Umount_all()
 
 	return nil, nil
 }
@@ -192,7 +184,10 @@ func CopyToDisk(disk, src string) (*guestfs.GuestfsError, error) {
 	if errno != nil {
 		return nil, errno
 	}
-	defer g.Close()
+	defer func() {
+		g.Shutdown()
+		g.Close()
+	}()
 
 	/* Attach the disk image read-only to libguestfs. */
 	optargs := guestfs.OptargsAdd_drive{
@@ -212,25 +207,65 @@ func CopyToDisk(disk, src string) (*guestfs.GuestfsError, error) {
 		return err, nil
 	}
 
-	err = g.Mount(disk, "/")
+	/* Get the list of devices.  Because we only added one drive
+	 * above, we expect that this list should contain a single
+	 * element.
+	 */
+	devices, err := g.List_devices()
+	if err != nil {
+		return err, nil
+	}
+	if len(devices) != 1 {
+		fmt.Println("\nexpected a single device from list-devices")
+		return err, nil
+	}
+
+	/* Partition the disk as one single MBR partition. */
+	err = g.Part_disk(devices[0], "mbr")
 	if err != nil {
 		return err, nil
 	}
 
-	err = g.Mount_local("/mnt", nil)
+	/* Get the list of partitions.  We expect a single element, which
+	 * is the partition we have just created.
+	 */
+	partitions, err := g.List_partitions()
 	if err != nil {
+		return err, nil
+	}
+	if len(partitions) != 1 {
+		fmt.Println("\nexpected a single partition from list-partitions")
+		return err, nil
+	}
+
+	if err := g.Mount(partitions[0], "/"); err != nil {
+		return err, nil
+	}
+
+	if err := g.Mount_local("/mnt", nil); err != nil {
 		return err, nil
 	}
 
 	go g.Mount_local_run()
 
-	errno = CopyDirectory(src, "/mnt/")
-	if err != nil {
-		return nil, errno
+	go g.Sync()
+
+	files, ok := filepath.Glob(src + "/*")
+	if ok != nil {
+		return nil, ok
 	}
 
-	err = g.Shutdown()
-	if err != nil {
+	for _, dir := range files {
+		if err := CopyDirectory(dir, "/mnt"); err != nil {
+			log.Println(err)
+		}
+	}
+
+	if err := g.Umount_local(nil); err != nil {
+		return err, nil
+	}
+
+	if err := g.Umount_all(); err != nil {
 		return err, nil
 	}
 

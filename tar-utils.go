@@ -46,7 +46,7 @@ func ExtractFiles(archivePath, dst string) (err error) {
 			return err
 		}
 
-	} else if strings.Contains(archivePath, ".tar.gz") || strings.Contains(archivePath, ".zip") || strings.Contains(archivePath, ".rar") {
+	} else if strings.Contains(archivePath, ".tar.gz") || strings.Contains(archivePath, ".zip") || strings.Contains(archivePath, ".rar") || strings.Contains(archivePath, ".tbz2") || strings.Contains(archivePath, ".bz2") {
 		data, err := ioutil.ReadFile(archivePath)
 		if err != nil {
 			return err
@@ -54,8 +54,12 @@ func ExtractFiles(archivePath, dst string) (err error) {
 
 		buffer := bytes.NewBuffer(data)
 
+		filepath.Ext(archivePath)
+
 		switch filepath.Ext(archivePath) {
 		case ".bz2":
+			err = extract.Bz2(context.Background(), buffer, dst, nil)
+		case ".tbz2":
 			err = extract.Bz2(context.Background(), buffer, dst, nil)
 		case ".gz":
 			err = extract.Gz(context.Background(), buffer, dst, nil)
