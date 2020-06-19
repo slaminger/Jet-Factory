@@ -46,7 +46,7 @@ func ExtractFiles(archivePath, dst string) (err error) {
 			return err
 		}
 
-	} else if strings.Contains(archivePath, ".tar.gz") || strings.Contains(archivePath, ".zip") || strings.Contains(archivePath, ".rar") || strings.Contains(archivePath, ".tbz2") || strings.Contains(archivePath, ".bz2") {
+	} else if strings.Contains(archivePath, ".tar") || strings.Contains(archivePath, ".zip") || strings.Contains(archivePath, ".rar") || strings.Contains(archivePath, ".tbz2") || strings.Contains(archivePath, ".bz2") {
 		data, err := ioutil.ReadFile(archivePath)
 		if err != nil {
 			return err
@@ -65,6 +65,8 @@ func ExtractFiles(archivePath, dst string) (err error) {
 			err = extract.Gz(context.Background(), buffer, dst, nil)
 		case ".zip":
 			err = extract.Zip(context.Background(), buffer, dst, nil)
+		case ".tar":
+			err = extract.Tar(context.Background(), buffer, dst, nil)
 		default:
 			fmt.Println("Unknown error")
 			return err

@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"log"
 	"regexp"
 	"strings"
 
@@ -73,18 +74,20 @@ func SelectArchitecture() error {
 func SelectVersion() (constructedURL string, err error) {
 	for _, avalaibleMirror := range distribution.Architectures[buildarch] {
 		// If the string contains the tag {VERSION} then try to replace the tag by walking the URL
-		// TODO : Rework this
+
 		if strings.Contains(avalaibleMirror, "{VERSION}") {
 
 			constructedURL = strings.Split(avalaibleMirror, "/{VERSION}")[0]
 			versionBody := WalkURL(constructedURL)
 
+			// TODO : Rework this
 			search, _ := regexp.Compile(">:?([[:digit:]]{1,3}.[[:digit:]]+|[[:digit:]]+)(?:/)")
 			match := search.FindAllStringSubmatch(*versionBody, -1)
 
 			if match == nil {
 				return "", errors.New("Couldn't find any match for regex")
 			}
+			// TODO END
 
 			versions := make([]string, 0)
 			for i := 0; i < len(match); i++ {
@@ -98,12 +101,14 @@ func SelectVersion() (constructedURL string, err error) {
 				return "", err
 			}
 			constructedURL = strings.Replace(avalaibleMirror, "{VERSION}", version, 1)
-
 			imageBody := WalkURL(constructedURL)
+
+			log.Println("ImageBody:", *imageBody)
 			search, _ = regexp.Compile(">:?([[:alpha:]]+.*.raw.xz)")
 			imageMatch := search.FindAllStringSubmatch(*imageBody, -1)
 			images := make([]string, 0)
 
+			log.Println("ImageMatch:", imageMatch)
 			for i := 0; i < len(imageMatch); i++ {
 				for _, submatches := range imageMatch {
 					images = append(images, submatches[1])
@@ -121,6 +126,8 @@ func SelectVersion() (constructedURL string, err error) {
 			} else {
 				return "", err
 			}
+
+			log.Println("ImageFile:", imageFile)
 
 			return strings.TrimSpace(constructedURL + imageFile), nil
 

@@ -63,6 +63,13 @@ func SpawnContainer(cmd, env []string) error {
 	config := &container.HostConfig{
 		Privileged:  true,
 		VolumesFrom: []string{"jet"},
+		// Mounts: []mount.Mount{
+		// 	{
+		// 		Type:   mount.TypeBind,
+		// 		Source: "/var/run/docker.sock",
+		// 		Target: "/var/run/docker.sock",
+		// 	},
+		// },
 	}
 
 	resp, err := cli.ContainerCreate(ctx, &container.Config{
