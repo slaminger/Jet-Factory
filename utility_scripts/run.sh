@@ -9,4 +9,4 @@ SCRIPT_DIRECTORY=$(pwd)
 export DEBIAN_FRONTEND=noninteractive
 export DISTRO=""
 
-./jetfactory -distro="$DISTRO"
+./jetfactory -distro="$DISTRO" -v "/var/run/docker.sock:/var/run/docker.sock"
