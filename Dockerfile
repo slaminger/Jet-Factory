@@ -11,7 +11,5 @@ ADD ./go.* /root/
 ADD ./*.json /root/
 RUN go build
 
-ARG DISTRO
-ENV DISTRO=${DISTRO}
 VOLUME [ "/root/linux", "/root/android" ]
-CMD /root/jetfactory -distro=${DISTRO}
+ENTRYPOINT [ "/root/jetfactory" ]

@@ -23,7 +23,7 @@
         "pre": [],
         "post": [
             "wget --no-check-certificate --content-disposition 'https://raw.githubusercontent.com/Azkali/L4T-Packages-Repository/master/build-stage2-arch.sh'",
-            "./build-stage2-arch.sh"
+            "chmod +x build-stage2-arch.sh && ./build-stage2-arch.sh"
         ],
         "packages": [
             "xorg-xrandr",
@@ -57,7 +57,7 @@
         "pre": [],
         "post": [
             "wget --no-check-certificate --content-disposition 'https://raw.githubusercontent.com/Azkali/L4T-Packages-Repository/master/build-stage2-fedora.sh'",
-            "./build-stage2-fedora.sh"
+            "chmod +x build-stage2-fedora.sh && ./build-stage2-fedora.sh"
         ],
         "packages": [
             "lightdm",
@@ -119,7 +119,7 @@
         },
         "pre": [
             "wget --no-check-certificate --content-disposition 'https://raw.githubusercontent.com/Azkali/L4T-Packages-Repository/master/build-stage2-ubuntu.sh'",
-            "./build-stage2-ubuntu.sh --pre"
+            "chmod +x build-stage2-ubuntu.sh && ./build-stage2-ubuntu.sh --pre"
         ],
         "post": [],
         "packages": []

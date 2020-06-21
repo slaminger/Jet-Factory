@@ -1,16 +1,14 @@
 package main
 
 import (
-	"bytes"
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"os"
-	"path"
-	"strconv"
-	"time"
+	"strings"
+
+	"github.com/dustin/go-humanize"
 )
 
 /* Net utilities
@@ -38,113 +36,64 @@ func WalkURL(source string) *string {
 	return &body
 }
 
-// PrintDownloadPercent :
-func PrintDownloadPercent(done chan int64, path string, total int64) {
-	var stop bool = false
+// WriteCounter counts the number of bytes written to it. It implements to the io.Writer interface
+// and we can pass this into io.TeeReader() which will report progress on each write cycle.
+type WriteCounter struct {
+	Total uint64
+}
 
-	for {
-		select {
-		case <-done:
-			stop = true
-		default:
+// Write :
+func (wc *WriteCounter) Write(p []byte) (int, error) {
+	n := len(p)
+	wc.Total += uint64(n)
+	wc.PrintProgress()
+	return n, nil
+}
 
-			file, err := os.Open(path)
-			if err != nil {
-				fmt.Println(err)
-			}
+// PrintProgress :
+func (wc WriteCounter) PrintProgress() {
+	// Clear the line by using a character return to go back to the start and remove
+	// the remaining characters by filling it with spaces
+	fmt.Printf("\r%s", strings.Repeat(" ", 35))
 
-			fi, err := file.Stat()
-			if err != nil {
-				fmt.Println(err)
-			}
-
-			size := fi.Size()
-
-			if size == 0 {
-				size = 1
-			}
-
-			var percent float64 = float64(size) / float64(total) * 100
-
-			fmt.Printf("%.0f", percent)
-			fmt.Println("%")
-		}
-
-		if stop {
-			break
-		}
-
-		time.Sleep(time.Second)
-	}
+	// Return again and print current status of download
+	// We use the humanize package to print the bytes in a meaningful way (e.g. 10 MB)
+	fmt.Printf("\rDownloading... %s complete", humanize.Bytes(wc.Total))
 }
 
 // DownloadFile :
-func DownloadFile(url string, dest string) (err error) {
+func DownloadFile(filepath string, url string) error {
 
-	file := path.Base(url)
-
-	fmt.Printf("Downloading file %s from %s\n", file, url)
-
-	var path bytes.Buffer
-	path.WriteString(dest)
-	path.WriteString("/")
-	path.WriteString(file)
-
-	start := time.Now()
-
-	out, err := os.Create(path.String())
-
-	if err != nil {
-		fmt.Println(path.String())
-		return err
-	}
-
-	defer out.Close()
-
-	headResp, err := http.Head(url)
-
+	// Create the file, but give it a tmp file extension, this means we won't overwrite a
+	// file until it's downloaded, but we'll remove the tmp extension once downloaded.
+	out, err := os.Create(filepath + ".tmp")
 	if err != nil {
 		return err
 	}
 
-	defer headResp.Body.Close()
-
-	size, err := strconv.Atoi(headResp.Header.Get("Content-Length"))
-
+	// Get the data
+	resp, err := http.Get(url)
 	if err != nil {
+		out.Close()
+		return err
+	}
+	defer resp.Body.Close()
+
+	// Create our progress reporter and pass it to be used alongside our writer
+	counter := &WriteCounter{}
+	if _, err = io.Copy(out, io.TeeReader(resp.Body, counter)); err != nil {
+		out.Close()
 		return err
 	}
 
-	done := make(chan int64)
+	// The progress use the same line so print a new line once it's finished downloading
+	fmt.Print("\n")
 
-	go PrintDownloadPercent(done, path.String(), int64(size))
+	// Close the file without defer so it can happen before Rename()
+	out.Close()
 
-	var (
-		response *http.Response
-		retries  int = 5
-	)
-	for retries > 0 {
-		response, err = http.Get(url)
-		if err != nil {
-			log.Println(err)
-			retries--
-		} else {
-			break
-		}
+	if err = os.Rename(filepath+".tmp", filepath); err != nil {
+		return err
 	}
-	if response != nil {
-		defer response.Body.Close()
-		n, err := io.Copy(out, response.Body)
-
-		if err != nil {
-			return err
-		}
-
-		done <- n
-
-		elapsed := time.Since(start)
-		fmt.Printf("Download completed in %s", elapsed)
-	}
-
 	return nil
 }

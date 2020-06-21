@@ -2,7 +2,6 @@ package main
 
 import (
 	"errors"
-	"log"
 	"regexp"
 	"strings"
 
@@ -80,7 +79,7 @@ func SelectVersion() (constructedURL string, err error) {
 			constructedURL = strings.Split(avalaibleMirror, "/{VERSION}")[0]
 			versionBody := WalkURL(constructedURL)
 
-			// TODO : Rework this
+			// TODO : Rework this ?
 			search, _ := regexp.Compile(">:?([[:digit:]]{1,3}.[[:digit:]]+|[[:digit:]]+)(?:/)")
 			match := search.FindAllStringSubmatch(*versionBody, -1)
 
@@ -103,12 +102,11 @@ func SelectVersion() (constructedURL string, err error) {
 			constructedURL = strings.Replace(avalaibleMirror, "{VERSION}", version, 1)
 			imageBody := WalkURL(constructedURL)
 
-			log.Println("ImageBody:", *imageBody)
+			// TODO : Rework regexp search string
 			search, _ = regexp.Compile(">:?([[:alpha:]]+.*.raw.xz)")
 			imageMatch := search.FindAllStringSubmatch(*imageBody, -1)
 			images := make([]string, 0)
 
-			log.Println("ImageMatch:", imageMatch)
 			for i := 0; i < len(imageMatch); i++ {
 				for _, submatches := range imageMatch {
 					images = append(images, submatches[1])
@@ -126,8 +124,6 @@ func SelectVersion() (constructedURL string, err error) {
 			} else {
 				return "", err
 			}
-
-			log.Println("ImageFile:", imageFile)
 
 			return strings.TrimSpace(constructedURL + imageFile), nil
 

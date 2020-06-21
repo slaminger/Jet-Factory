@@ -21,4 +21,5 @@ require (
 	github.com/xi2/xz v0.0.0-20171230120015-48954b6210f8
 	golang.org/x/net v0.0.0-20200520182314-0ba52f642ac2 // indirect
 	golang.org/x/sys v0.0.0-20200323222414-85ca7c5b95cd
+	github.com/dustin/go-humanize v1.0.0
 )

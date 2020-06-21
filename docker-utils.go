@@ -14,21 +14,21 @@ import (
 
 // BinfmtSupport :
 func BinfmtSupport() error {
-	dockerImageName = "docker.io/multiarch/qemu-user-static:register"
 	ctx := context.Background()
 	cli, err := client.NewClient(client.DefaultDockerHost, client.DefaultVersion, nil, map[string]string{"Content-Type": "application/json"})
 	if err != nil {
 		return err
 	}
 
-	reader, err := cli.ImagePull(ctx, dockerImageName, types.ImagePullOptions{})
+	reader, err := cli.ImagePull(ctx, "docker.io/aptman/qus", types.ImagePullOptions{})
 	if err != nil {
 		return err
 	}
 	io.Copy(os.Stdout, reader)
 
 	resp, err := cli.ContainerCreate(ctx, &container.Config{
-		Image: dockerImageName,
+		Image: "docker.io/aptman/qus",
+		Cmd:   []string{"-s", "-- -p"},
 	}, &container.HostConfig{
 		Privileged: true,
 	}, nil, "")
