@@ -67,6 +67,7 @@ func SpawnContainer(cmd, env []string) error {
 
 	resp, err := cli.ContainerCreate(ctx, &container.Config{
 		Image:        dockerImageName,
+		Entrypoint:   []string{"/bin/bash"},
 		Cmd:          cmd,
 		Env:          env,
 		Tty:          true,
