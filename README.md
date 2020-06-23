@@ -1,6 +1,6 @@
 # Jet Factory
 
-Create live and/or flashable linux distribution root filesystem images.
+Create live and flashable linux distribution root filesystem images.
 
 ## Scripts options
 
@@ -10,8 +10,7 @@ Options:
   -arch               Platform build architecture; default aarch64
   -distro             Distribution to build: ubuntu, fedora, opensuse(leap, tumbleweed), slackware, arch(blackarch, arch-bang), lineage(icosa, foster, foster_tab)
   -hekate             Build an hekate installable filesystem
-  -path               Output path; defaults to current directory
-  -staging            Install built local packages
+  -force              Force to redownload files
   -help               Show this help text
 ```
 

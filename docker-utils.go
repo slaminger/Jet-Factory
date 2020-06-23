@@ -60,14 +60,19 @@ func SpawnContainer(cmd, env []string) error {
 	}
 	io.Copy(os.Stdout, reader)
 
+	hostname, err := os.Hostname()
+	if err != nil {
+		return err
+	}
+
 	config := &container.HostConfig{
 		Privileged:  true,
-		VolumesFrom: []string{"jet"},
+		VolumesFrom: []string{hostname},
 	}
 
 	resp, err := cli.ContainerCreate(ctx, &container.Config{
 		Image:        dockerImageName,
-		Entrypoint:   []string{"/bin/bash", "-c"},
+		Entrypoint:   []string{"/bin/bash"},
 		Cmd:          cmd,
 		Env:          env,
 		Tty:          true,
