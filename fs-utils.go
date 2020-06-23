@@ -19,23 +19,7 @@ import (
 	"github.com/xi2/xz"
 )
 
-// DirSizeMB :
-func DirSizeMB(path string) int64 {
-	var dirSize int64 = 0
-
-	readSize := func(path string, file os.FileInfo, err error) error {
-		if !file.IsDir() {
-			dirSize += file.Size()
-		}
-
-		return nil
-	}
-
-	filepath.Walk(path, readSize)
-	return dirSize
-}
-
-// Copy :
+// Copy : Copy a file to a dst; returns nil if success; returns err otherwise;
 func Copy(srcFile, dstFile string) error {
 	out, err := os.Create(dstFile)
 	if err != nil {
@@ -58,16 +42,7 @@ func Copy(srcFile, dstFile string) error {
 	return nil
 }
 
-// Exists :
-func Exists(filePath string) bool {
-	if _, err := os.Stat(filePath); os.IsNotExist(err) {
-		return false
-	}
-
-	return true
-}
-
-// RetryFunction :
+// RetryFunction : Retry a function that failed, n Times; returns nil on success; returns err otherwise;
 func RetryFunction(attempts int, sleep time.Duration, f func() error) (err error) {
 	for i := 0; ; i++ {
 		err = f()
@@ -86,7 +61,7 @@ func RetryFunction(attempts int, sleep time.Duration, f func() error) (err error
 	return fmt.Errorf("After %d attempts, last error: %s", attempts, err)
 }
 
-// SplitFile :
+// SplitFile : Split a file into pieces of sizeInBytes size; returns nil on success; returns err otherwise;
 func SplitFile(filepath, outpath string, sizeInBytes int64) (err error) {
 	file, err := os.Open(filepath)
 	if err != nil {
@@ -124,7 +99,7 @@ func SplitFile(filepath, outpath string, sizeInBytes int64) (err error) {
 	return nil
 }
 
-// ExtractFiles :
+// ExtractFiles : Extract compressed files, supports TAR, GZ, ZIP, TBZ2; returns nil on success; returns err otherwise;
 func ExtractFiles(archivePath, dst string) (err error) {
 	fmt.Println("Extracting:", archivePath, "in:", dst)
 
@@ -299,7 +274,7 @@ func ExtractFiles(archivePath, dst string) (err error) {
 // 	return nil, nil
 // }
 
-// CopyFromDisk :
+// CopyFromDisk : Use libguestfs backend to extract files from a partition; returns nil on success; returns err otherwise;
 func CopyFromDisk(disk, dst string) (*guestfs.GuestfsError, error) {
 	g, errno := guestfs.Create()
 	if errno != nil {

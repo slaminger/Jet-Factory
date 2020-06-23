@@ -8,11 +8,7 @@ import (
 	"github.com/AlecAivazis/survey/v2"
 )
 
-/* Menu - CLI
-* Selector function
- */
-
-// CliSelect : Select an item in a menu from cli
+// CliSelect : Select an item in a menu from cli; returns nil and the answer on success; returns err otherwise;
 func CliSelect(label string, items []string) (answer string, err error) {
 	var inputValue string
 	prompt := &survey.Select{
@@ -25,7 +21,7 @@ func CliSelect(label string, items []string) (answer string, err error) {
 	return inputValue, nil
 }
 
-// CliInput : Set an input in a menu from cli
+// CliInput : Set an input in a menu from cli; returns nil and the input on success; returns err otherwise;
 func CliInput(label string) (answer string, err error) {
 	var inputValue string
 	prompt := &survey.Input{
@@ -37,7 +33,7 @@ func CliInput(label string) (answer string, err error) {
 	return inputValue, nil
 }
 
-// SelectDistro :
+// SelectDistro : Select an avalaible distribution to build; returns nil and the selected distro name on success; returns err otherwise;
 func SelectDistro() (*string, error) {
 	var avalaibles []string
 	for _, baseDistro := range basesDistro {
@@ -55,7 +51,7 @@ func SelectDistro() (*string, error) {
 	return &name, nil
 }
 
-// SelectArchitecture :
+// SelectArchitecture : Select an avalaible build architecture; returns nil on success; returns err otherwise;
 func SelectArchitecture() error {
 	var avalaible []string
 	for archi := range distribution.Architectures {
@@ -69,24 +65,22 @@ func SelectArchitecture() error {
 	return nil
 }
 
-// SelectVersion : Retrieve a URL for a distribution based on a version
+// SelectVersion : Retrieve a URL for a distribution based on a version; returns nil and the constructed URL on success; returns err otherwise;
 func SelectVersion() (constructedURL string, err error) {
 	for _, avalaibleMirror := range distribution.Architectures[buildarch] {
-		// If the string contains the tag {VERSION} then try to replace the tag by walking the URL
 
+		// If the string contains the tag {VERSION} then try to replace the tag by walking the URL
 		if strings.Contains(avalaibleMirror, "{VERSION}") {
 
 			constructedURL = strings.Split(avalaibleMirror, "/{VERSION}")[0]
 			versionBody := WalkURL(constructedURL)
 
-			// TODO : Rework this ?
 			search, _ := regexp.Compile(">:?([[:digit:]]{1,3}.[[:digit:]]+|[[:digit:]]+)(?:/)")
 			match := search.FindAllStringSubmatch(*versionBody, -1)
 
 			if match == nil {
 				return "", errors.New("Couldn't find any match for regex")
 			}
-			// TODO END
 
 			versions := make([]string, 0)
 			for i := 0; i < len(match); i++ {
@@ -99,6 +93,7 @@ func SelectVersion() (constructedURL string, err error) {
 			if err != nil {
 				return "", err
 			}
+
 			constructedURL = strings.Replace(avalaibleMirror, "{VERSION}", version, 1)
 			imageBody := WalkURL(constructedURL)
 

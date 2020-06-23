@@ -28,36 +28,37 @@ type (
 
 	// Variant : Represent a distribution variant
 	Variant struct {
-		Name     string   `json:"name"`
-		Pre      []string `json:"pre"`
-		Post     []string `json:"post"`
-		Packages []string `json:"packages"`
+		Name          string              `json:"name"`
+		Pre           []string            `json:"pre"`
+		Post          []string            `json:"post"`
+		Packages      []string            `json:"packages"`
+		Architectures map[string][]string `json:"buildarch"`
 	}
 )
 
 var (
-	distribution Distribution
-	variant      Variant
-
+	distribution                       Distribution
+	variant                            Variant
+	hekate, force                      bool
 	buildarch, dockerImageName, distro string
-	managerList                        = []string{"zypper", "dnf", "yum", "pacman", "apt"}
-	hekateVersion, nyxVersion          = "5.3.0", "0.9.2"
-	hekateBin                          = "hekate_ctcaer_" + hekateVersion + ".bin"
-	hekateURL                          = "https://github.com/CTCaer/hekate/releases/download/v" + hekateVersion + "/hekate_ctcaer_" + hekateVersion + "_Nyx_" + nyxVersion + ".zip"
-	hekateZip                          = hekateURL[strings.LastIndex(hekateURL, "/")+1:]
 
-	isVariant, isAndroid         = false, false
-	hekate, staging, skip, force bool
+	isVariant, isAndroid = false, false
+	managerList          = []string{"zypper", "dnf", "yum", "pacman", "apt"}
+
+	hekateVersion, nyxVersion = "5.3.0", "0.9.2"
+	hekateBin                 = "hekate_ctcaer_" + hekateVersion + ".bin"
+	hekateURL                 = "https://github.com/CTCaer/hekate/releases/download/v" + hekateVersion + "/hekate_ctcaer_" + hekateVersion + "_Nyx_" + nyxVersion + ".zip"
+	hekateZip                 = hekateURL[strings.LastIndex(hekateURL, "/")+1:]
 
 	baseJSON, _ = ioutil.ReadFile("./base.json")
 	basesDistro = []Distribution{}
 	_           = json.Unmarshal([]byte(baseJSON), &basesDistro)
 )
 
-// DetectPackageManager :
+// DetectPackageManager : Check if package manager is avalaible in the rootfs to build
 func DetectPackageManager(rootfs string) (packageManager string, err error) {
 	for _, man := range managerList {
-		if Exists(rootfs + "/usr/bin/" + man) {
+		if _, err := os.Stat(rootfs + "/usr/bin/" + man); os.IsExist(err) {
 			if man == "zypper" || man == "dnf" || man == "yum" || man == "apt" {
 				packageManager = man + " install " + "-y "
 			} else if man == "pacman" {
@@ -72,18 +73,22 @@ func DetectPackageManager(rootfs string) (packageManager string, err error) {
 
 // SetDistro : Checks if a distribution is avalaible in the config files
 func SetDistro(name string) (err error) {
-	// Check/ if name match a known distribution
+	// Check if name match a known distribution
 	for i := 0; i < len(basesDistro); i++ {
+		// Construct Base distribution if it's the case
 		if name == basesDistro[i].Name {
+			// Keep a direct reference to the name
 			distro = name
 			distribution = Distribution{Name: basesDistro[i].Name, Architectures: basesDistro[i].Architectures, Pre: basesDistro[i].Pre, Post: basesDistro[i].Post, Packages: basesDistro[i].Packages}
 			return nil
 		}
+
+		// Construct Variant distribution if exists and add isVariant flag
 		for j := 0; j < len(basesDistro[i].Variants); j++ {
 			if name == basesDistro[i].Variants[j].Name {
 				isVariant = true
 				distro = name
-				variant = Variant{Name: basesDistro[i].Variants[j].Name, Packages: basesDistro[i].Variants[j].Packages, Pre: basesDistro[i].Variants[j].Pre, Post: basesDistro[i].Variants[j].Post}
+				variant = Variant{Name: basesDistro[i].Variants[j].Name, Architectures: basesDistro[i].Variants[j].Architectures, Packages: basesDistro[i].Variants[j].Packages, Pre: basesDistro[i].Variants[j].Pre, Post: basesDistro[i].Variants[j].Post}
 				return nil
 			}
 		}
@@ -93,15 +98,23 @@ func SetDistro(name string) (err error) {
 
 // IsValidArchitecture : Check if the inputed architecture can be found for the distribution
 func IsValidArchitecture() (archi *string) {
-	for archis := range distribution.Architectures {
-		if buildarch == archis {
-			return &buildarch
+	if !isVariant {
+		for archis := range distribution.Architectures {
+			if buildarch == archis {
+				return &buildarch
+			}
+		}
+	} else if isVariant {
+		for archis := range variant.Architectures {
+			if buildarch == archis {
+				return &buildarch
+			}
 		}
 	}
 	return nil
 }
 
-// PostChroot : Remove qemu-aarch64-static binary and unmount the binded directories
+// PostChroot : Remove qemu-user-static binary
 func PostChroot(mountpoint string, oldRootF *os.File) error {
 	err := os.Remove(mountpoint + "/usr/bin/qemu-" + buildarch + "-static")
 	if err != nil {
@@ -110,7 +123,7 @@ func PostChroot(mountpoint string, oldRootF *os.File) error {
 	return nil
 }
 
-// PreChroot : Copy qemu-aarch64-static binary and mount bind the directories
+// PreChroot : Copy qemu-user-static binary
 func PreChroot(path string) error {
 	err := Copy("/usr/bin/qemu-"+buildarch+"-static", path+"/usr/bin/qemu-"+buildarch+"-static")
 	if err != nil {
@@ -125,6 +138,7 @@ func PreChroot(path string) error {
 
 // DownloadURLfromTags : Retrieve a URL for a distribution based on a version
 func DownloadURLfromTags(srcURL, dst string) error {
+	// Retry function in case of temporary network failures
 	err := RetryFunction(5, 2*time.Second, func() (err error) {
 		_, err = url.ParseRequestURI(srcURL)
 		if err != nil {
@@ -144,7 +158,10 @@ func DownloadURLfromTags(srcURL, dst string) error {
 
 // PrepareFiles : Prepare the filesystem for chroot
 func PrepareFiles(basePath, dlDir string) (err error) {
-	os.RemoveAll(basePath)
+	// Create the directories we need
+	if err := os.RemoveAll(basePath); err != nil {
+		return err
+	}
 
 	if err = os.MkdirAll(basePath, 0755); err != nil {
 		return err
@@ -154,35 +171,34 @@ func PrepareFiles(basePath, dlDir string) (err error) {
 		return err
 	}
 
-	if !skip {
-		srcURL, err := SelectVersion()
+	// Retrieve/Construct URL to download
+	srcURL, err := SelectVersion()
+	if err != nil {
+		return err
+	}
+
+	// Store the filename contain in the  URL
+	parsedURL := strings.Split(srcURL, "/")
+	image := parsedURL[len(parsedURL)-1]
+
+	// If it exists don't download it again
+	// TODO : Check integrity + Time + Date
+	if _, err := os.Stat(dlDir + image); os.IsNotExist(err) || force {
+		err = DownloadURLfromTags(srcURL, dlDir+image)
 		if err != nil {
 			return err
 		}
+	}
 
-		parsedURL := strings.Split(srcURL, "/")
-		image := parsedURL[len(parsedURL)-1]
+	if err := ExtractFiles(dlDir+image, basePath); err != nil {
+		return err
+	}
 
-		if _, err := os.Stat(dlDir + image); os.IsNotExist(err) || force == true {
-			err = DownloadURLfromTags(srcURL, dlDir+image)
-			if err != nil {
-				return err
-			}
-		}
-
-		if err := ExtractFiles(dlDir+image, basePath); err != nil {
+	// If the file extracted is a disk image extract the rootfs from said image file
+	if strings.Contains(basePath+image, ".raw") {
+		image = image[0:strings.LastIndex(image, ".")]
+		if _, err := CopyFromDisk(basePath+"/"+image, basePath); err != nil {
 			return err
-		}
-
-		if strings.Contains(basePath+image, ".raw") {
-			image = image[0:strings.LastIndex(image, ".")]
-			if _, err := CopyFromDisk(basePath+"/"+image, basePath); err != nil {
-				return err
-			}
-
-			if err = os.Remove(basePath + "/" + image); err != nil {
-				return err
-			}
 		}
 	}
 	return nil
@@ -195,6 +211,7 @@ func InstallPackagesInChrootEnv(path string) error {
 		return err
 	}
 
+	// Pacman init and tweaks
 	if distribution.Name == "arch" {
 		err = SpawnContainer([]string{"arch-chroot", path, "pacman-key", "--init"}, nil)
 		if err != nil {
@@ -212,7 +229,6 @@ func InstallPackagesInChrootEnv(path string) error {
 		}
 
 		newContents := strings.Replace(string(read), "CheckSpace", "#CheckSpace", -1)
-
 		err = ioutil.WriteFile(path+"/etc/pacman.conf", []byte(newContents), 0)
 		if err != nil {
 			return err
@@ -238,7 +254,7 @@ func InstallPackagesInChrootEnv(path string) error {
 	return nil
 }
 
-// PreConfigRootfs : Runs one or multiple command in a chroot environment; Returns nil if successful
+// PreConfigRootfs : Runs one or multiple command in a chroot environment before packages installation; Returns nil if successful
 func PreConfigRootfs(path string) error {
 	if isVariant {
 		for _, config := range variant.Pre {
@@ -257,7 +273,7 @@ func PreConfigRootfs(path string) error {
 	return nil
 }
 
-// PostConfigRootfs : Runs one or multiple command in a chroot environment; Returns nil if successful
+// PostConfigRootfs : Runs one or multiple command in a chroot environment after packages installation; Returns nil if successful
 func PostConfigRootfs(path string) error {
 	if isVariant {
 		for _, config := range variant.Post {
@@ -282,6 +298,7 @@ func Hekate(dlDir, basePath, imagePath, distro string) error {
 		return err
 	}
 
+	// Hekate download and extract
 	if err := DownloadFile(dlDir+hekateZip, hekateURL); err != nil {
 		return err
 	}
@@ -294,25 +311,29 @@ func Hekate(dlDir, basePath, imagePath, distro string) error {
 		return err
 	}
 
+	// Spawn virt-make-fs and add +256MB when producing ext4 rootfs disk image
 	args := "virt-make-fs --format=raw --type=ext4 --size=+256M " + basePath + " " + imagePath
 	_, err := exec.Command("bash", "-c", args).Output()
 	if err != nil {
 		return err
 	}
 
+	// Split the ext4 disk image file, in 4290772992 bytes parts. Hekate needs this
 	if err := SplitFile(imagePath, dlDir+"switchroot/install/", 4290772992); err != nil {
 		return err
 	}
 
+	// Remove previously made zip
 	if err := os.RemoveAll(dlDir + "SWC-" + distro + ".zip"); err != nil {
 		return err
 	}
 
+	// Pack hekate and the flashable rootfs
 	if err := archiver.DefaultZip.Archive([]string{dlDir + "switchroot/", dlDir + "bootloader/"}, dlDir+"SWC-"+distro+".zip"); err != nil {
 		return err
 	}
-	fmt.Println("Hekate archive created in :", dlDir+"SWC-"+distro+".zip")
 
+	// Cleanup files
 	if err := os.RemoveAll(dlDir + hekateZip); err != nil {
 		return err
 	}
@@ -333,6 +354,7 @@ func Hekate(dlDir, basePath, imagePath, distro string) error {
 		return err
 	}
 
+	fmt.Println("Hekate archive created in :", dlDir+"SWC-"+distro+".zip")
 	return nil
 }
 
@@ -356,8 +378,10 @@ func Factory() (err error) {
 	}
 
 	if isAndroid {
+		// Docker uses this image when SpawnContainer is spawned
 		dockerImageName = "docker.io/pablozaiden/switchroot-android-build:latest"
 
+		// Create directories needed by PabloZaiden/switchroot-android-build builder
 		if err := os.MkdirAll("/root/android/lineage", 0755); err != nil {
 			return err
 		}
@@ -366,6 +390,7 @@ func Factory() (err error) {
 			return err
 		}
 
+		// Spawn a Container to build Android Lineage
 		if err := SpawnContainer(nil, []string{"ROM_NAME=" + distro}); err != nil {
 			return err
 		}
@@ -373,10 +398,11 @@ func Factory() (err error) {
 		return nil
 	}
 
+	// Set bits for linux building
 	basePath := "/root/linux/" + distro
 	dlDir := "/root/linux/downloadedFiles/"
 	imagePath := dlDir + distro + ".img"
-	dockerImageName = "docker.io/alizkan/jet-factory:1.0.0"
+	dockerImageName = "docker.io/alizkan/jet-factory:latest"
 
 	if err := SetDistro(distro); err != nil {
 		return err
@@ -441,8 +467,6 @@ func main() {
 	flag.StringVar(&buildarch, "archi", "", "Distribution to build")
 
 	flag.BoolVar(&hekate, "hekate", false, "Build an hekate installable filesystem")
-	// flag.BoolVar(&staging, "staging", false, "Install built local packages")
-	flag.BoolVar(&skip, "skip", false, "Skip file prepare")
 	flag.BoolVar(&force, "force", false, "Force to redownload files")
 
 	flag.Parse()

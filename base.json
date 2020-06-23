@@ -6,13 +6,19 @@
                 "name": "arch-bang",
                 "pre": [],
                 "post": [],
-                "packages": []
+                "packages": [],
+                "buildarch": {
+                    "aarch64": []
+                }
             },
             {
                 "name": "blackarch",
                 "pre": [],
                 "post": [],
-                "packages": []
+                "packages": [],
+                "buildarch": {
+                    "aarch64": []
+                }
             }
         ],
         "buildarch": {
@@ -20,10 +26,13 @@
                 "http://de3.mirror.archlinuxarm.org/os/ArchLinuxARM-aarch64-latest.tar.gz"
             ]
         },
-        "pre": [],
+        "pre": [
+            "wget --no-check-certificate --content-disposition 'https://raw.githubusercontent.com/Azkali/L4T-Packages-Repository/master/build-stage2-arch.sh'",
+            "chmod +x build-stage2-arch.sh && ./build-stage2-arch.sh --post"
+        ],
         "post": [
             "wget --no-check-certificate --content-disposition 'https://raw.githubusercontent.com/Azkali/L4T-Packages-Repository/master/build-stage2-arch.sh'",
-            "chmod +x build-stage2-arch.sh && ./build-stage2-arch.sh"
+            "chmod +x build-stage2-arch.sh && ./build-stage2-arch.sh --post"
         ],
         "packages": [
             "xorg-xrandr",
@@ -54,10 +63,13 @@
                 "https://download.fedoraproject.org/pub/fedora/linux/releases/{VERSION}/Server/aarch64/images/"
             ]
         },
-        "pre": [],
+        "pre": [
+            "wget --no-check-certificate --content-disposition 'https://raw.githubusercontent.com/Azkali/L4T-Packages-Repository/master/build-stage2-fedora.sh'",
+            "chmod +x build-stage2-fedora.sh && ./build-stage2-fedora.sh --pre"
+        ],
         "post": [
             "wget --no-check-certificate --content-disposition 'https://raw.githubusercontent.com/Azkali/L4T-Packages-Repository/master/build-stage2-fedora.sh'",
-            "chmod +x build-stage2-fedora.sh && ./build-stage2-fedora.sh"
+            "chmod +x build-stage2-fedora.sh && ./build-stage2-fedora.sh --post"
         ],
         "packages": [
             "lightdm",

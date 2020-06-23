@@ -12,7 +12,7 @@ import (
 	"github.com/docker/docker/client"
 )
 
-// BinfmtSupport :
+// BinfmtSupport : Adds Binfmt support for cross-architecture chroot; returns nil on success; returns err otherwise;
 func BinfmtSupport() error {
 	ctx := context.Background()
 	cli, err := client.NewClient(client.DefaultDockerHost, client.DefaultVersion, nil, map[string]string{"Content-Type": "application/json"})
@@ -46,7 +46,7 @@ func BinfmtSupport() error {
 	return nil
 }
 
-// SpawnContainer : Spawns a container based on dockerImageName
+// SpawnContainer : Spawns a container based on dockerImageName; returns nil on success; returns err otherwise;
 func SpawnContainer(cmd, env []string) error {
 	ctx := context.Background()
 	cli, err := client.NewClient(client.DefaultDockerHost, client.DefaultVersion, nil, map[string]string{"Content-Type": "application/json"})
@@ -63,13 +63,6 @@ func SpawnContainer(cmd, env []string) error {
 	config := &container.HostConfig{
 		Privileged:  true,
 		VolumesFrom: []string{"jet"},
-		// Mounts: []mount.Mount{
-		// 	{
-		// 		Type:   mount.TypeBind,
-		// 		Source: "/var/run/docker.sock",
-		// 		Target: "/var/run/docker.sock",
-		// 	},
-		// },
 	}
 
 	resp, err := cli.ContainerCreate(ctx, &container.Config{

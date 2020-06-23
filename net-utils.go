@@ -16,7 +16,7 @@ import (
 * Wget to download a file
  */
 
-// WalkURL : Walk a URL, and return the body
+// WalkURL : Walk a URL path; returns the URL body on success; returs nil otherwise;
 func WalkURL(source string) *string {
 	resp, err := http.Get(source)
 	if err != nil {
@@ -36,7 +36,7 @@ func WalkURL(source string) *string {
 	return &body
 }
 
-// WriteCounter counts the number of bytes written to it. It implements to the io.Writer interface
+// WriteCounter : counts the number of bytes written to it. It implements to the io.Writer interface
 // and we can pass this into io.TeeReader() which will report progress on each write cycle.
 type WriteCounter struct {
 	Total uint64
@@ -50,7 +50,7 @@ func (wc *WriteCounter) Write(p []byte) (int, error) {
 	return n, nil
 }
 
-// PrintProgress :
+// PrintProgress : Print the file download progress;
 func (wc WriteCounter) PrintProgress() {
 	// Clear the line by using a character return to go back to the start and remove
 	// the remaining characters by filling it with spaces
@@ -61,7 +61,7 @@ func (wc WriteCounter) PrintProgress() {
 	fmt.Printf("\rDownloading... %s complete", humanize.Bytes(wc.Total))
 }
 
-// DownloadFile :
+// DownloadFile : Download a file form a valid given URL to the destination file path; returns nil on success; returns err otherwise;
 func DownloadFile(filepath string, url string) error {
 
 	// Create the file, but give it a tmp file extension, this means we won't overwrite a
