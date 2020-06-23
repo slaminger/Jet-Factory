@@ -3,7 +3,7 @@ ARG DEBIAN_FRONTEND=noninteractive
 
 RUN apt update -y && apt upgrade -y && apt install -y software-properties-common
 RUN add-apt-repository ppa:longsleep/golang-backports -y
-RUN apt update -y && apt install -y qemu qemu-user-static binfmt-support arch-install-scripts linux-image-generic golang-go libguestfs-tools libguestfs-dev
+RUN apt update -y && apt install -y qemu qemu-user-static arch-install-scripts linux-image-generic golang-go libguestfs-tools libguestfs-dev
 
 WORKDIR /root/
 ADD ./*.go /root/
