@@ -28,11 +28,13 @@
         },
         "pre": [
             "wget --no-check-certificate --content-disposition 'https://raw.githubusercontent.com/Azkali/L4T-Packages-Repository/master/build-stage2-arch.sh'",
-            "chmod +x build-stage2-arch.sh && ./build-stage2-arch.sh --post"
+            "chmod +x build-stage2-arch.sh",
+            "./build-stage2-arch.sh --pre"
         ],
         "post": [
             "wget --no-check-certificate --content-disposition 'https://raw.githubusercontent.com/Azkali/L4T-Packages-Repository/master/build-stage2-arch.sh'",
-            "chmod +x build-stage2-arch.sh && ./build-stage2-arch.sh --post"
+            "chmod +x build-stage2-arch.sh",
+            "./build-stage2-arch.sh --post"
         ],
         "packages": [
             "xorg-xrandr",
@@ -65,11 +67,13 @@
         },
         "pre": [
             "wget --no-check-certificate --content-disposition 'https://raw.githubusercontent.com/Azkali/L4T-Packages-Repository/master/build-stage2-fedora.sh'",
-            "chmod +x build-stage2-fedora.sh && ./build-stage2-fedora.sh --pre"
+            "chmod +x build-stage2-fedora.sh",
+            "./build-stage2-fedora.sh --pre"
         ],
         "post": [
             "wget --no-check-certificate --content-disposition 'https://raw.githubusercontent.com/Azkali/L4T-Packages-Repository/master/build-stage2-fedora.sh'",
-            "chmod +x build-stage2-fedora.sh && ./build-stage2-fedora.sh --post"
+            "chmod +x build-stage2-fedora.sh",
+            "./build-stage2-fedora.sh --post"
         ],
         "packages": [
             "lightdm",
@@ -103,7 +107,7 @@
             {
                 "name": "tumbleweed",
                 "buildarch": {
-                    "aarch64": []
+                    "aarch64": ["http://download.opensuse.org/ports/aarch64/tumbleweed/images/"]
                 },
                 "pre": [],
                 "post": [],
@@ -131,9 +135,14 @@
         },
         "pre": [
             "wget --no-check-certificate --content-disposition 'https://raw.githubusercontent.com/Azkali/L4T-Packages-Repository/master/build-stage2-ubuntu.sh'",
-            "chmod +x build-stage2-ubuntu.sh && ./build-stage2-ubuntu.sh --pre"
+            "chmod +x ./build-stage2-ubuntu.sh",
+            "/bin/bash build-stage2-ubuntu.sh --pre"
         ],
-        "post": [],
+        "post": [
+	    	"wget --no-check-certificate --content-disposition 'https://raw.githubusercontent.com/Azkali/L4T-Packages-Repository/master/build-stage2-ubuntu.sh'",
+            "chmod +x ./build-stage2-ubuntu.sh",
+            "/bin/bash build-stage2-ubuntu.sh --post"
+	],
         "packages": []
     },
     {

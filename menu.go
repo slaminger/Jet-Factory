@@ -54,9 +54,17 @@ func SelectDistro() (*string, error) {
 // SelectArchitecture : Select an avalaible build architecture; returns nil on success; returns err otherwise;
 func SelectArchitecture() error {
 	var avalaible []string
-	for archi := range distribution.Architectures {
-		avalaible = append(avalaible, archi)
+
+	if isVariant {
+		for archi := range variant.Architectures {
+			avalaible = append(avalaible, archi)
+		}
+	} else {
+		for archi := range base.Architectures {
+			avalaible = append(avalaible, archi)
+		}
 	}
+
 	arch, err := CliSelect("Choose an avalaible Architecture :", avalaible)
 	if err != nil {
 		return err
@@ -67,7 +75,32 @@ func SelectArchitecture() error {
 
 // SelectVersion : Retrieve a URL for a distribution based on a version; returns nil and the constructed URL on success; returns err otherwise;
 func SelectVersion() (constructedURL string, err error) {
-	for _, avalaibleMirror := range distribution.Architectures[buildarch] {
+	var avalaibleMirrors []string
+	if isVariant {
+		for _, avalaibleMirror := range variant.Architectures[buildarch] {
+			avalaibleMirrors = append(avalaibleMirrors, avalaibleMirror)
+		}
+	} else {
+		for _, avalaibleMirror := range base.Architectures[buildarch] {
+			avalaibleMirrors = append(avalaibleMirrors, avalaibleMirror)
+		}
+	}
+
+	if len(avalaibleMirrors) == 0 {
+		constructedURL, err := CliInput("No URL found in config, input one that point directly to your rootfs :")
+		if err != nil {
+			return "", err
+		}
+		return constructedURL, nil
+	}
+
+	for _, avalaibleMirror := range avalaibleMirrors {
+		var imageBody *string
+
+		// TODO : Rework this following ugly stuff
+		if strings.Contains(avalaibleMirror, ".raw.") || strings.Contains(avalaibleMirror, ".tar.") || strings.Contains(avalaibleMirror, ".tbz2") || strings.Contains(avalaibleMirror, ".zip") || strings.Contains(avalaibleMirror, ".rar") || strings.Contains(avalaibleMirror, ".gz") {
+			return avalaibleMirror, nil
+		}
 
 		// If the string contains the tag {VERSION} then try to replace the tag by walking the URL
 		if strings.Contains(avalaibleMirror, "{VERSION}") {
@@ -95,10 +128,12 @@ func SelectVersion() (constructedURL string, err error) {
 			}
 
 			constructedURL = strings.Replace(avalaibleMirror, "{VERSION}", version, 1)
-			imageBody := WalkURL(constructedURL)
+			imageBody = WalkURL(constructedURL)
+		}
 
-			// TODO : Rework regexp search string
-			search, _ = regexp.Compile(">:?([[:alpha:]]+.*.raw.xz)")
+		// After the tag is eventually replaced or the URL passed doesn't contain the TAG {VERSION} try to parse the URL
+		if imageBody != nil {
+			search, _ := regexp.Compile(">:?([[:alpha:]]+.*.raw.xz)")
 			imageMatch := search.FindAllStringSubmatch(*imageBody, -1)
 			images := make([]string, 0)
 
@@ -119,18 +154,7 @@ func SelectVersion() (constructedURL string, err error) {
 			} else {
 				return "", err
 			}
-
 			return strings.TrimSpace(constructedURL + imageFile), nil
-
-			// TODO : Rework this following ugly stuff
-		} else if strings.Contains(avalaibleMirror, ".raw.") || strings.Contains(avalaibleMirror, ".tar.") || strings.Contains(avalaibleMirror, ".tbz2") || strings.Contains(avalaibleMirror, ".zip") || strings.Contains(avalaibleMirror, ".rar") || strings.Contains(avalaibleMirror, ".gz") {
-			return avalaibleMirror, nil
-		} else {
-			constructedURL, err := CliInput("No URL found in config, input one that point directly to your rootfs :")
-			if err != nil {
-				return "", err
-			}
-			return constructedURL, nil
 		}
 	}
 	return "", errors.New("Unknown issue occured")
