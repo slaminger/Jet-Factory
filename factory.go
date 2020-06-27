@@ -6,7 +6,6 @@ import (
 	"flag"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"net/url"
 	"os"
 	"os/exec"
@@ -17,8 +16,8 @@ import (
 )
 
 type (
-	// Distribution : Represent a distribution conatining a name, version, desktop environment and an optional list of packages
-	Distribution struct {
+	// Base : Represent a base distribution conatining a name, version, desktop environment and an optional list of packages
+	Base struct {
 		Name          string              `json:"name"`
 		Pre           []string            `json:"pre"`
 		Post          []string            `json:"post"`
@@ -38,13 +37,13 @@ type (
 )
 
 var (
-	base                               Distribution
+	base                               Base
 	variant                            Variant
 	hekate, force                      bool
 	buildarch, dockerImageName, distro string
 
 	isVariant, isAndroid = false, false
-	managerList          = []string{"zypper", "dnf", "yum", "pacman", "apt"}
+	managerList          = []string{"zypper", "dnf", "yum", "pacman", "apt-get"}
 
 	hekateVersion, nyxVersion = "5.3.0", "0.9.2"
 	hekateBin                 = "hekate_ctcaer_" + hekateVersion + ".bin"
@@ -52,15 +51,15 @@ var (
 	hekateZip                 = hekateURL[strings.LastIndex(hekateURL, "/")+1:]
 
 	baseJSON, _ = ioutil.ReadFile("./base.json")
-	basesDistro = []Distribution{}
+	basesDistro = []Base{}
 	_           = json.Unmarshal([]byte(baseJSON), &basesDistro)
 )
 
 // DetectPackageManager : Check if package manager is avalaible in the rootfs to build
 func DetectPackageManager(rootfs string) (packageManager string, err error) {
 	for _, man := range managerList {
-		if _, err := os.Stat(rootfs + "/usr/bin/" + man); os.IsExist(err) {
-			if man == "zypper" || man == "dnf" || man == "yum" || man == "apt" {
+		if Exists(rootfs + "/usr/bin/" + man) {
+			if man == "zypper" || man == "dnf" || man == "yum" || man == "apt-get" {
 				packageManager = man + " install " + "-y "
 			} else if man == "pacman" {
 				packageManager = man + " -Syu " + "--noconfirm "
@@ -80,7 +79,7 @@ func SetDistro(name string) (err error) {
 		if name == basesDistro[i].Name {
 			// Keep a direct reference to the name
 			distro = name
-			base = Distribution{Name: basesDistro[i].Name, Architectures: basesDistro[i].Architectures, Pre: basesDistro[i].Pre, Post: basesDistro[i].Post, Packages: basesDistro[i].Packages}
+			base = Base{Name: basesDistro[i].Name, Architectures: basesDistro[i].Architectures, Pre: basesDistro[i].Pre, Post: basesDistro[i].Post, Packages: basesDistro[i].Packages}
 			return nil
 		}
 
@@ -201,6 +200,10 @@ func PrepareFiles(basePath, dlDir string) (err error) {
 		if _, err := CopyFromDisk(basePath+"/"+image, basePath); err != nil {
 			return err
 		}
+
+		if err := os.Remove(basePath + "/" + image); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -259,18 +262,14 @@ func InstallPackagesInChrootEnv(path string) error {
 func PreConfigRootfs(path string) error {
 	if isVariant {
 		for _, config := range variant.Pre {
-			cmd := strings.Split(config, " ")[0]
-			args := strings.Split(config, " ")[1]
-			if err := SpawnContainer([]string{"arch-chroot", path, cmd + args}, nil); err != nil {
+			if err := SpawnContainer([]string{"arch-chroot", path, "bash", "-c", config}, nil); err != nil {
 				return err
 			}
 		}
 	}
 
 	for _, config := range base.Pre {
-		cmd := strings.Split(config, " ")[0]
-		args := strings.Split(config, " ")[1]
-		if err := SpawnContainer([]string{"arch-chroot", path, cmd + args}, nil); err != nil {
+		if err := SpawnContainer([]string{"arch-chroot", path, "bash", "-c", config}, nil); err != nil {
 			return err
 		}
 	}
@@ -282,18 +281,14 @@ func PreConfigRootfs(path string) error {
 func PostConfigRootfs(path string) error {
 	if isVariant {
 		for _, config := range variant.Post {
-			cmd := strings.Split(config, " ")[0]
-			args := strings.Split(config, " ")[1]
-			if err := SpawnContainer([]string{"arch-chroot", path, cmd + args}, nil); err != nil {
+			if err := SpawnContainer([]string{"arch-chroot", path, "bash", "-c", config}, nil); err != nil {
 				return err
 			}
 		}
 	}
 
 	for _, config := range base.Post {
-		cmd := strings.Split(config, " ")[0]
-		args := strings.Split(config, " ")[1]
-		if err := SpawnContainer([]string{"arch-chroot", path, cmd + args}, nil); err != nil {
+		if err := SpawnContainer([]string{"arch-chroot", path, "bash", "-c", config}, nil); err != nil {
 			return err
 		}
 	}
@@ -440,7 +435,6 @@ func Factory() (err error) {
 	}
 
 	if err := PreConfigRootfs(basePath); err != nil {
-		log.Println(err)
 		return err
 	}
 
@@ -449,7 +443,6 @@ func Factory() (err error) {
 	}
 
 	if err := PostConfigRootfs(basePath); err != nil {
-		log.Println(err)
 		return err
 	}
 

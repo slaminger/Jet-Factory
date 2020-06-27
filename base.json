@@ -8,7 +8,10 @@
                 "post": [],
                 "packages": [],
                 "buildarch": {
-                    "aarch64": []
+                    "aarch64": [],
+                    "i386": [],
+                    "amd64": [],
+                    "arm": []
                 }
             },
             {
@@ -17,25 +20,28 @@
                 "post": [],
                 "packages": [],
                 "buildarch": {
-                    "aarch64": []
+                    "aarch64": [],
+                    "i386": [],
+                    "amd64": [],
+                    "arm": []
                 }
             }
         ],
         "buildarch": {
             "aarch64": [
                 "http://de3.mirror.archlinuxarm.org/os/ArchLinuxARM-aarch64-latest.tar.gz"
-            ]
+            ],
+            "i386": [],
+            "amd64": [],
+            "arm": []
         },
         "pre": [
-            "wget --no-check-certificate --content-disposition 'https://raw.githubusercontent.com/Azkali/L4T-Packages-Repository/master/build-stage2-arch.sh'",
+            "sed -i 's/mirror.archlinuxarm.org/eu.mirror.archlinuxarm.org/g' /etc/pacman.d/mirrorlist",
+            "wget -L https://raw.githubusercontent.com/Azkali/L4T-Packages-Repository/master/build-stage2-arch.sh",
             "chmod +x build-stage2-arch.sh",
-            "./build-stage2-arch.sh --pre"
+            "bash build-stage2-arch.sh"
         ],
-        "post": [
-            "wget --no-check-certificate --content-disposition 'https://raw.githubusercontent.com/Azkali/L4T-Packages-Repository/master/build-stage2-arch.sh'",
-            "chmod +x build-stage2-arch.sh",
-            "./build-stage2-arch.sh --post"
-        ],
+        "post": [],
         "packages": [
             "xorg-xrandr",
             "xorg-xinput",
@@ -62,18 +68,16 @@
         "variants": [],
         "buildarch": {
             "aarch64": [
-                "https://download.fedoraproject.org/pub/fedora/linux/releases/{VERSION}/Server/aarch64/images/"
-            ]
+                "http://distrib-coffee.ipsl.jussieu.fr/pub/linux/fedora/linux/releases/32/Server/aarch64/images/Fedora-Server-32-1.6.aarch64.raw.xz"
+            ],
+            "i386": [],
+            "amd64": [],
+            "arm": []
         },
-        "pre": [
-            "wget --no-check-certificate --content-disposition 'https://raw.githubusercontent.com/Azkali/L4T-Packages-Repository/master/build-stage2-fedora.sh'",
-            "chmod +x build-stage2-fedora.sh",
-            "./build-stage2-fedora.sh --pre"
-        ],
+        "pre": [],
         "post": [
-            "wget --no-check-certificate --content-disposition 'https://raw.githubusercontent.com/Azkali/L4T-Packages-Repository/master/build-stage2-fedora.sh'",
-            "chmod +x build-stage2-fedora.sh",
-            "./build-stage2-fedora.sh --post"
+            "wget -L https://raw.githubusercontent.com/Azkali/L4T-Packages-Repository/master/build-stage2-fedora.sh",
+            "chmod +x build-stage2-fedora.sh && bash build-stage2-fedora.sh"
         ],
         "packages": [
             "lightdm",
@@ -107,22 +111,44 @@
             {
                 "name": "tumbleweed",
                 "buildarch": {
-                    "aarch64": ["http://download.opensuse.org/ports/aarch64/tumbleweed/images/"]
+                    "aarch64": [
+                        "http://download.opensuse.org/ports/aarch64/tumbleweed/images/openSUSE-Tumbleweed-ARM-KDE.aarch64-rootfs.aarch64-2020.06.15-Snapshot20200622.tar.xz"
+                    ],
+                    "i386": [],
+                    "amd64": [],
+                    "arm": []
                 },
                 "pre": [],
                 "post": [],
-                "packages": []
+                "packages": [
+                    "lightdm",
+                    "onboard"
+                ]
             },
             {
                 "name": "leap",
                 "buildarch": {
                     "aarch64": [
-                        "http://download.opensuse.org/ports/aarhc64/distribution/leap/{VERSION}/appliances/"
-                    ]
+                        "http://download.opensuse.org/ports/aarch64/distribution/leap/15.0/appliances/openSUSE-Leap15.0-ARM-KDE.aarch64-rootfs.aarch64-2018.07.02-Buildlp150.1.1.tar.xz"
+                    ],
+                    "i386": [],
+                    "amd64": [],
+                    "arm": []
                 },
                 "pre": [],
-                "post": [],
-                "packages": []
+                "post": [
+                    "wget -L https://raw.githubusercontent.com/Azkali/L4T-Packages-Repository/master/build-stage2-leap.sh",
+                    "chmod +x build-stage2-leap.sh && bash build-stage2-leap.sh"
+                ],
+                "packages": [
+                    "lightdm",
+                    "onboard",
+                    "plymouth",
+                    "sudo",
+                    "git",
+                    "rpm-build",
+                    "dnf-plugins-core"
+                ]
             }
         ]
     },
@@ -131,24 +157,25 @@
         "buildarch": {
             "aarch64": [
                 "https://developer.nvidia.com/embedded/L4T/r32_Release_v4.2/t210ref_release_aarch64/Tegra_Linux_Sample-Root-Filesystem_R32.4.2_aarch64.tbz2"
-            ]
+            ],
+            "i386": [],
+            "amd64": [],
+            "arm": []
         },
-        "pre": [
-            "wget --no-check-certificate --content-disposition 'https://raw.githubusercontent.com/Azkali/L4T-Packages-Repository/master/build-stage2-ubuntu.sh'",
-            "chmod +x ./build-stage2-ubuntu.sh",
-            "/bin/bash build-stage2-ubuntu.sh --pre"
-        ],
+        "pre": [],
         "post": [
-	    	"wget --no-check-certificate --content-disposition 'https://raw.githubusercontent.com/Azkali/L4T-Packages-Repository/master/build-stage2-ubuntu.sh'",
-            "chmod +x ./build-stage2-ubuntu.sh",
-            "/bin/bash build-stage2-ubuntu.sh --post"
-	],
+            "wget -L https://raw.githubusercontent.com/Azkali/L4T-Packages-Repository/master/build-stage2-ubuntu.sh",
+            "chmod +x build-stage2-ubuntu.sh && bash build-stage2-ubuntu.sh"
+        ],
         "packages": []
     },
     {
         "name": "slackware",
         "buildarch": {
-            "aarch64": []
+            "aarch64": [],
+            "i386": [],
+            "amd64": [],
+            "arm": []
         },
         "pre": [],
         "post": [],
@@ -160,7 +187,10 @@
             {
                 "name": "icosa",
                 "buildarch": {
-                    "aarch64": []
+                    "aarch64": [],
+                    "i386": [],
+                    "amd64": [],
+                    "arm": []
                 },
                 "pre": [],
                 "post": []
@@ -168,7 +198,10 @@
             {
                 "name": "foster",
                 "buildarch": {
-                    "aarch64": []
+                    "aarch64": [],
+                    "i386": [],
+                    "amd64": [],
+                    "arm": []
                 },
                 "pre": [],
                 "post": []
@@ -176,7 +209,10 @@
             {
                 "name": "foster_tab",
                 "buildarch": {
-                    "aarch64": []
+                    "aarch64": [],
+                    "i386": [],
+                    "amd64": [],
+                    "arm": []
                 },
                 "pre": [],
                 "post": []

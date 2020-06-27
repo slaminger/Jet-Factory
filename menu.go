@@ -1,8 +1,6 @@
 package main
 
 import (
-	"errors"
-	"regexp"
 	"strings"
 
 	"github.com/AlecAivazis/survey/v2"
@@ -76,6 +74,8 @@ func SelectArchitecture() error {
 // SelectVersion : Retrieve a URL for a distribution based on a version; returns nil and the constructed URL on success; returns err otherwise;
 func SelectVersion() (constructedURL string, err error) {
 	var avalaibleMirrors []string
+	var selectedMirror string
+
 	if isVariant {
 		for _, avalaibleMirror := range variant.Architectures[buildarch] {
 			avalaibleMirrors = append(avalaibleMirrors, avalaibleMirror)
@@ -86,76 +86,24 @@ func SelectVersion() (constructedURL string, err error) {
 		}
 	}
 
-	if len(avalaibleMirrors) == 0 {
-		constructedURL, err := CliInput("No URL found in config, input one that point directly to your rootfs :")
+	if len(avalaibleMirrors) > 1 {
+		selectedMirror, err = CliSelect("Choose a URL :", avalaibleMirrors)
 		if err != nil {
 			return "", err
 		}
-		return constructedURL, nil
+	} else if len(avalaibleMirrors) == 1 {
+		selectedMirror = avalaibleMirrors[0]
 	}
 
-	for _, avalaibleMirror := range avalaibleMirrors {
-		var imageBody *string
-
-		// TODO : Rework this following ugly stuff
-		if strings.Contains(avalaibleMirror, ".raw.") || strings.Contains(avalaibleMirror, ".tar.") || strings.Contains(avalaibleMirror, ".tbz2") || strings.Contains(avalaibleMirror, ".zip") || strings.Contains(avalaibleMirror, ".rar") || strings.Contains(avalaibleMirror, ".gz") {
-			return avalaibleMirror, nil
-		}
-
-		// If the string contains the tag {VERSION} then try to replace the tag by walking the URL
-		if strings.Contains(avalaibleMirror, "{VERSION}") {
-
-			constructedURL = strings.Split(avalaibleMirror, "/{VERSION}")[0]
-			versionBody := WalkURL(constructedURL)
-
-			search, _ := regexp.Compile(">:?([[:digit:]]{1,3}.[[:digit:]]+|[[:digit:]]+)(?:/)")
-			match := search.FindAllStringSubmatch(*versionBody, -1)
-
-			if match == nil {
-				return "", errors.New("Couldn't find any match for regex")
-			}
-
-			versions := make([]string, 0)
-			for i := 0; i < len(match); i++ {
-				for _, submatches := range match {
-					versions = append(versions, submatches[1])
-				}
-			}
-
-			version, err := CliSelect("Select a version: ", versions)
-			if err != nil {
-				return "", err
-			}
-
-			constructedURL = strings.Replace(avalaibleMirror, "{VERSION}", version, 1)
-			imageBody = WalkURL(constructedURL)
-		}
-
-		// After the tag is eventually replaced or the URL passed doesn't contain the TAG {VERSION} try to parse the URL
-		if imageBody != nil {
-			search, _ := regexp.Compile(">:?([[:alpha:]]+.*.raw.xz)")
-			imageMatch := search.FindAllStringSubmatch(*imageBody, -1)
-			images := make([]string, 0)
-
-			for i := 0; i < len(imageMatch); i++ {
-				for _, submatches := range imageMatch {
-					images = append(images, submatches[1])
-				}
-			}
-
-			var imageFile string
-			if len(images) > 1 {
-				imageFile, err = CliSelect("Select an image file: ", images)
-				if err != nil {
-					return "", err
-				}
-			} else if len(images) == 1 {
-				imageFile = images[0]
-			} else {
-				return "", err
-			}
-			return strings.TrimSpace(constructedURL + imageFile), nil
-		}
+	// TODO : Rework this following ugly stuff
+	if strings.Contains(selectedMirror, ".raw.") || strings.Contains(selectedMirror, ".tar.") || strings.Contains(selectedMirror, ".tbz2") || strings.Contains(selectedMirror, ".zip") || strings.Contains(selectedMirror, ".rar") || strings.Contains(selectedMirror, ".gz") {
+		return selectedMirror, nil
 	}
-	return "", errors.New("Unknown issue occured")
+
+	constructedURL, err = CliInput("No URL found in config, input one that point directly to your rootfs :")
+	if err != nil {
+		return "", err
+	}
+
+	return constructedURL, nil
 }

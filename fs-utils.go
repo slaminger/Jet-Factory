@@ -42,6 +42,15 @@ func Copy(srcFile, dstFile string) error {
 	return nil
 }
 
+// Exists :
+func Exists(filePath string) bool {
+	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+		return false
+	}
+
+	return true
+}
+
 // RetryFunction : Retry a function that failed, n Times; returns nil on success; returns err otherwise;
 func RetryFunction(attempts int, sleep time.Duration, f func() error) (err error) {
 	for i := 0; ; i++ {
@@ -130,8 +139,10 @@ func ExtractFiles(archivePath, dst string) (err error) {
 		if err != nil {
 			return err
 		}
+		archivePath = dst + "/" + outputFile
+	}
 
-	} else if strings.Contains(archivePath, ".tar") || strings.Contains(archivePath, ".zip") || strings.Contains(archivePath, ".rar") || strings.Contains(archivePath, ".tbz2") || strings.Contains(archivePath, ".bz2") {
+	if strings.Contains(archivePath, ".tar") || strings.Contains(archivePath, ".zip") || strings.Contains(archivePath, ".rar") || strings.Contains(archivePath, ".tbz2") || strings.Contains(archivePath, ".bz2") {
 		data, err := ioutil.ReadFile(archivePath)
 		if err != nil {
 			return err
@@ -140,7 +151,6 @@ func ExtractFiles(archivePath, dst string) (err error) {
 		buffer := bytes.NewBuffer(data)
 
 		filepath.Ext(archivePath)
-
 		switch filepath.Ext(archivePath) {
 		case ".bz2":
 			err = extract.Bz2(context.Background(), buffer, dst, nil)
