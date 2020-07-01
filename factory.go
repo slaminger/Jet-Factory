@@ -120,6 +120,10 @@ func PostChroot(mountpoint string, oldRootF *os.File) error {
 	if err != nil {
 		return err
 	}
+	err = os.Remove(mountpoint + "/etc/resolv.conf")
+	if err != nil {
+		return nil
+	}
 	return nil
 }
 
@@ -133,6 +137,11 @@ func PreChroot(path string) error {
 	if err := os.Chmod(path+"/usr/bin/qemu-"+buildarch+"-static", 0755); err != nil {
 		return err
 	}
+
+	if err := Copy("/etc/resolv.conf", path+"/etc/resolv.conf"); err != nil {
+		return nil
+	}
+
 	return nil
 }
 

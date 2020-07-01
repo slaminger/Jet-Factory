@@ -175,6 +175,7 @@ func ExtractFiles(archivePath, dst string) (err error) {
 		fmt.Println("\nCouldn't recognize archive type for:", archivePath)
 		return err
 	}
+
 	fmt.Println("Successfully extracted:", archivePath)
 	return nil
 }
