@@ -62,7 +62,7 @@ func DetectPackageManager(rootfs string) (packageManager string, err error) {
 			if man == "zypper" || man == "dnf" || man == "yum" || man == "apt-get" {
 				packageManager = man + " install " + "-y "
 			} else if man == "pacman" {
-				packageManager = man + " -Syu " + "--noconfirm "
+				packageManager = man + " -Syyu " + "--noconfirm "
 			} else {
 				return "", errors.New("Couldn't detect package manager")
 			}
@@ -199,13 +199,15 @@ func PrepareFiles(basePath, dlDir string) (err error) {
 		}
 	}
 
-	if err := ExtractFiles(dlDir+image, basePath); err != nil {
-		return err
+	if !strings.HasSuffix(basePath+image, ".raw") || !strings.HasSuffix(basePath+image, ".iso") {
+		if err := ExtractFiles(dlDir+image, basePath); err != nil {
+			return err
+		}
+		image = image[0:strings.LastIndex(image, ".")]
 	}
 
 	// If the file extracted is a disk image extract the rootfs from said image file
-	if strings.Contains(basePath+image, ".raw") {
-		image = image[0:strings.LastIndex(image, ".")]
+	if strings.Contains(basePath+image, ".raw") || strings.Contains(basePath+image, ".iso") {
 		if _, err := CopyFromDisk(basePath+"/"+image, basePath); err != nil {
 			return err
 		}

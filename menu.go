@@ -96,7 +96,7 @@ func SelectVersion() (constructedURL string, err error) {
 	}
 
 	// TODO : Rework this following ugly stuff
-	if strings.Contains(selectedMirror, ".raw.") || strings.Contains(selectedMirror, ".tar.") || strings.Contains(selectedMirror, ".tbz2") || strings.Contains(selectedMirror, ".zip") || strings.Contains(selectedMirror, ".rar") || strings.Contains(selectedMirror, ".gz") {
+	if strings.Contains(selectedMirror, ".raw.") || strings.Contains(selectedMirror, ".tar.") || strings.Contains(selectedMirror, ".tbz2") || strings.Contains(selectedMirror, ".zip") || strings.Contains(selectedMirror, ".rar") || strings.Contains(selectedMirror, ".gz") || strings.Contains(selectedMirror, ".iso") {
 		return selectedMirror, nil
 	}
 

@@ -14,13 +14,13 @@ Options:
   -help               Show this help text
 ```
 
-## Build
+## Build example
 
-To build arch :
+To build Arch linux for hekate:
 
 ```sh
 mkdir -p ./linux
-docker run --cap-add=ALL --device=/dev/fuse --security-opt apparmor:unconfined --privileged --rm -it -e DISTRO=arch -v "$PWD"/linux:/root/linux -v /var/run/docker.sock:/var/run/docker.sock alizkan/jet-factory:latest
+docker run --privileged --rm -it -v "$PWD"/linux:/root/linux -v /var/run/docker.sock:/var/run/docker.sock alizkan/jet-factory:latest -distro arch -hekate
 ```
 
 ## Credits
@@ -32,5 +32,5 @@ For their work and contributions.
 
 ### Contributors
 
-@Stary2001, @Kitsumi, @parkerlreed, @AD2076, @PabloZaiden \
+@Stary2001, @Kitsumi, @parkerlreed, @AD2076, @PabloZaiden, @andrebraga \
 For their awesome work, support and contribution to this project
