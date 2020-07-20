@@ -45,7 +45,7 @@ var (
 	isVariant, isAndroid = false, false
 	managerList          = []string{"zypper", "dnf", "yum", "pacman", "apt-get"}
 
-	hekateVersion, nyxVersion = "5.3.0", "0.9.2"
+	hekateVersion, nyxVersion = "5.3.2", "0.9.3"
 	hekateBin                 = "hekate_ctcaer_" + hekateVersion + ".bin"
 	hekateURL                 = "https://github.com/CTCaer/hekate/releases/download/v" + hekateVersion + "/hekate_ctcaer_" + hekateVersion + "_Nyx_" + nyxVersion + ".zip"
 	hekateZip                 = hekateURL[strings.LastIndex(hekateURL, "/")+1:]
@@ -272,16 +272,20 @@ func InstallPackagesInChrootEnv(path string) error {
 // PreConfigRootfs : Runs one or multiple command in a chroot environment before packages installation; Returns nil if successful
 func PreConfigRootfs(path string) error {
 	if isVariant {
-		for _, config := range variant.Pre {
-			if err := SpawnContainer([]string{"arch-chroot", path, "bash", "-c", config}, nil); err != nil {
-				return err
+		if len(variant.Pre) > 0 {
+			for _, config := range variant.Pre {
+				if err := SpawnContainer([]string{"arch-chroot", path, "bash", "-c", config}, nil); err != nil {
+					return err
+				}
 			}
 		}
 	}
 
-	for _, config := range base.Pre {
-		if err := SpawnContainer([]string{"arch-chroot", path, "bash", "-c", config}, nil); err != nil {
-			return err
+	if len(base.Pre) > 0 {
+		for _, config := range base.Pre {
+			if err := SpawnContainer([]string{"arch-chroot", path, "bash", "-c", config}, nil); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -291,16 +295,20 @@ func PreConfigRootfs(path string) error {
 // PostConfigRootfs : Runs one or multiple command in a chroot environment after packages installation; Returns nil if successful
 func PostConfigRootfs(path string) error {
 	if isVariant {
-		for _, config := range variant.Post {
-			if err := SpawnContainer([]string{"arch-chroot", path, "bash", "-c", config}, nil); err != nil {
-				return err
+		if len(variant.Post) > 0 {
+			for _, config := range variant.Post {
+				if err := SpawnContainer([]string{"arch-chroot", path, "bash", "-c", config}, nil); err != nil {
+					return err
+				}
 			}
 		}
 	}
 
-	for _, config := range base.Post {
-		if err := SpawnContainer([]string{"arch-chroot", path, "bash", "-c", config}, nil); err != nil {
-			return err
+	if len(base.Post) > 0 {
+		for _, config := range base.Post {
+			if err := SpawnContainer([]string{"arch-chroot", path, "bash", "-c", config}, nil); err != nil {
+				return err
+			}
 		}
 	}
 
