@@ -1,5 +1,2 @@
 **/*
-launcher.sh
-!**/go.*
-!**/*.go
 !**/*.json
