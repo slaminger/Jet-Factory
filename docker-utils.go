@@ -68,6 +68,10 @@ func SpawnContainer(cmd, env []string) error {
 	config := &container.HostConfig{
 		Privileged:  true,
 		VolumesFrom: []string{hostname},
+		RestartPolicy: container.RestartPolicy{
+			Name:              "on-failure",
+			MaximumRetryCount: 5,
+		},
 	}
 
 	resp, err := cli.ContainerCreate(ctx, &container.Config{
