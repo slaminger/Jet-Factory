@@ -1,0 +1,5 @@
+NAME=Tumbleweed
+URL=
+SIG=
+AARCH=aarch64
+CHROOT_CMD=

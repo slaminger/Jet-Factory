@@ -1,5 +1,6 @@
 #!/usr/bin/bash
 # EXTRACT_ROOTFS.SH: Extract Rootfs using libguetsfs-tools
+
 # Handles .raw disk image
 if [ ${img} =~ ".raw.xz" ]; then
 	# Uncompress (xz format) the filesystem archive file

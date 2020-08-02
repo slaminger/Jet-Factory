@@ -1,0 +1,5 @@
+NAME=Arch
+URL=
+SIG=
+AARCH=aarch64
+CHROOT_CMD=

@@ -28,4 +28,6 @@
 dl/
 build/
 
-.vscode
+.vscode/
+linux/
+android/

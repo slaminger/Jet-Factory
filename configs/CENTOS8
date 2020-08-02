@@ -1,0 +1,5 @@
+NAME=CentOS8
+URL=
+SIG=
+AARCH=aarch64
+CHROOT_CMD=
