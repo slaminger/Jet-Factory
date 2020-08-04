@@ -7,19 +7,19 @@ hekate_zip=${hekate_url##*/}
 hekate_bin=hekate_ctcaer_${hekate_version}.bin
 
 # Download hekate
-wget -P "$1" -q --show-progress ${hekate_url} -O "$1/${hekate_zip}"
+wget -nc -q --show-progress ${hekate_url} -P "${out}/downloadedFiles/"
 
 # Extract hekate
-unzip -q -o "$1/${hekate_zip}" -d "$1"
+7z x "${out}/downloadedFiles/${hekate_zip}" -o"${out}/downloadedFiles/"
 
 # Upload hekate payload using libguestfs
-virt-copy-in -a ${img} "$1/${hekate_bin}" /usr/lib/firmware/reboot_payload.bin
+virt-copy-in -a ${guestfs_img} "${out}/downloadedFiles/${hekate_bin}" /usr/lib/firmware/reboot_payload.bin
 
-# Remove unneeded zip
-rm "$1/${hekate_zip}"
+# Remove unneeded
+rm "${out}/downloadedFiles/${hekate_zip}" "${out}/downloadedFiles/${hekate_bin}"
 
 # Split parts to output directory
-split -b4290772992 --numeric-suffixes=0 "${img}" "$1/switchroot/install/l4t."
+split -b4290772992 --numeric-suffixes=0 "${guestfs_img}" "${out}/downloadedFiles/switchroot/install/l4t."
 
 # 7zip the folder
-7z a "SWR-${img}.7z" $1/*
+7z a "SWR-${img}.7z" "${out}/downloadedFiles/{bootloader,switchroot}"

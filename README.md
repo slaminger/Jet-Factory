@@ -5,22 +5,34 @@ Create live and flashable linux distribution root filesystem images.
 ## Scripts options
 
 ```txt
-Usage: jetfactory [options]
+Usage: entrypoint.sh [options] <dir>
 Options:
-  --arch               Platform build architecture; default aarch64
-  --distro             Distribution to build: ubuntu, fedora, opensuse(leap, tumbleweed), slackware, arch(blackarch, arch-bang), lineage(icosa, foster, foster_tab)
-  --hekate             Build an hekate installable filesystem
-  --force              Force to redownload files
-  --help               Show this help text
+  -h, --hekate             Build an hekate installable filesystem
+  -u, --usage              Show script usage
 ```
 
 ## Build example
 
-To build Arch linux for hekate:
+- First, create a directory for the build :
 
 ```sh
 mkdir -p ./linux
-docker run --privileged --rm -it -v "$PWD"/linux:/linux -v /var/run/docker.sock:/var/run/docker.sock alizkan/jet-factory:latest --distro arch --hekate
+```
+
+Then, choose one of the two methods for building :
+
+- Option 1 Build without Docker :
+
+```sh
+./src/entrypoint.sh linux/
+```
+
+Or
+
+- Option 2 - Build with Docker :
+
+```sh
+docker run --privileged --rm -it -v "$PWD"/linux:/root/linux alizkan/jet-factory:latest
 ```
 
 ## Credits

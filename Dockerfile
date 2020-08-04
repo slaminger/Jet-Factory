@@ -4,7 +4,12 @@ ARG DEBIAN_FRONTEND=noninteractive
 RUN apt update -y 
 RUN apt install -y qemu qemu-user-static \
 				arch-install-scripts linux-image-generic \
-				libguestfs-tools libguestfs-dev
+				libguestfs-tools wget p7zip-full xz-utils
 
-VOLUME [ "/linux", "/android" ]
-ENTRYPOINT [ "/builder/src/entrypoint.sh" ]
+WORKDIR /root/
+COPY configs configs/
+COPY src src/
+RUN chmod +x src/*.sh
+
+VOLUME [ "/root/linux", "/root/android" ]
+ENTRYPOINT [ "/root/src/entrypoint.sh" ]

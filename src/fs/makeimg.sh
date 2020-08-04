@@ -1,11 +1,21 @@
 #!/usr/bin/bash
 # MAKEIMG.SH : Create rootfs image file
+tar_tmp=${NAME}.tar
+
+# Set Image name
+guestfs_img="SWR-${NAME}.img"
 
 # Allocate size
-size=$(du -hs -BM "${rootdir}" | head -n1 | awk '{print int($1/4)*4 + 4 + 512;}')M
+size=$(du -hs -BM "${out}/${NAME}/" | head -n1 | awk '{print int($1/4)*4 + 4 + 512;}')M
 
 # Create 4MB aligned image
-dd if=/dev/zero of="${guestfs_img}" bs=1 count=0 seek=${size}
+dd if=/dev/zero of=${guestfs_img} bs=1 count=0 seek=${size}
+
+# Create temporary tar archive
+tar cf ${tar_tmp} "${out}/${NAME}/"
 
 # EXtract tar content to image
-virt-tar-in -a ${guestfs_img} ${tar_out} /
+tar xOf  ${tar_tmp} | dd of=${guestfs_img} bs=1M
+
+# Remove unneeded files
+rm -r ${tar_tmp} "${out}/${NAME}/"

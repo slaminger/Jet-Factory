@@ -1,5 +1,5 @@
-NAME=Tumbleweed
+NAME=tumbleweed
 URL=
 SIG=
 AARCH=aarch64
-CHROOT_CMD=
+CHROOT_SCRIPT="swr-tumbleweed.sh"
