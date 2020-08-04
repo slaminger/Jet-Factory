@@ -11,6 +11,16 @@ Options:
   -u, --usage              Show script usage
 ```
 
+## Dependencies
+
+**Install the dependencies only if you build without using Docker !**
+
+Ubuntu :
+
+```txt
+sudo apt-get install qemu qemu-user-static arch-install-scripts linux-image-generic libguestfs-tools wget p7zip-full xz-utils
+```
+
 ## Build example
 
 - First, create a directory for the build :
@@ -24,7 +34,7 @@ Then, choose one of the two methods for building :
 - Option 1 Build without Docker :
 
 ```sh
-./src/entrypoint.sh linux/
+sudo ./src/entrypoint.sh linux/
 ```
 
 Or
@@ -32,7 +42,7 @@ Or
 - Option 2 - Build with Docker :
 
 ```sh
-docker run --privileged --rm -it -v "$PWD"/linux:/root/linux alizkan/jet-factory:latest
+sudo docker run --privileged --rm -it -v "$PWD"/linux:/root/linux alizkan/jet-factory:latest
 ```
 
 ## Credits
