@@ -11,6 +11,9 @@ size=$(du -hs -BM "${out}/${NAME}/" | head -n1 | awk '{print int($1/4)*4 + 4 + 5
 # Create 4MB aligned image
 dd if=/dev/zero of=${guestfs_img} bs=1 count=0 seek=${size}
 
+# Create ext4 partition
+mkfs.ext4 ${guestfs_img}
+
 # Create temporary tar archive
 tar cf ${tar_tmp} "${out}/${NAME}/"
 
