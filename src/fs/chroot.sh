@@ -1,6 +1,9 @@
 #!/usr/bin/bash
 # CHROOT.SH : Chroot and add qemu binary if necessary
 if [[ ${AARCH} != "" ]]; then
+	wget -L https://raw.githubusercontent.com/dbhi/qus/main/register.sh
+	chmod +x register.sh
+	./register.sh -s -- -p ${AARCH}
 	cp "/usr/bin/qemu-${AARCH}-static" "${out}/${NAME}/usr/bin/"
 fi
 
@@ -28,5 +31,7 @@ umount -R ${out}/${NAME}/{dev,proc,sys}/
 umount "${out}/${NAME}"
 
 if [[ ${AARCH} != "" ]]; then
+	./register.sh -- -r
 	rm "${out}/${NAME}/usr/bin/qemu-${AARCH}-static"
+	rm ./register.sh
 fi

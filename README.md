@@ -18,7 +18,7 @@ Options:
 Ubuntu :
 
 ```txt
-sudo apt-get install qemu qemu-user-static arch-install-scripts libguestfs-tools wget p7zip-full xz-utils
+sudo apt-get install qemu qemu-user-static binfmt-support arch-install-scripts libguestfs-tools wget p7zip-full xz-utils
 ```
 
 ## Build example
