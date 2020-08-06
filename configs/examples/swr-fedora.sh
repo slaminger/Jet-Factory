@@ -1,6 +1,7 @@
 #!/usr/bin/bash
 
 echo "Installing XFCE, Nvidia drivers and switch config..."
+dnf -y remove xorg-x11-server-common iscsi-initiator-utils-iscsiuio iscsi-initiator-utils clevis-luks atmel-firmware kernel*
 dnf -y update && dnf -y install @xfce-desktop lightdm git onboard langpacks-ja upower screen \
  								wpa_supplicant alsa-utils alsa-ucm alsa-plugins-pulseaudio pulseaudio pulseaudio-module-x11 \
   								pulseaudio-utils xorg-x11-xinit xorg-x11-drv-libinput xorg-x11-drv-wacom xorg-x11-drv-evdev \
@@ -14,8 +15,6 @@ dnf -y update && dnf -y install @xfce-desktop lightdm git onboard langpacks-ja u
 								https://kojipkgs.fedoraproject.org//vol/fedora_koji_archive02/packages/xorg-x11-server/1.19.6/7.fc28/aarch64/xorg-x11-server-devel-1.19.6-7.fc28.aarch64.rpm \
 								https://download1.rpmfusion.org/free/fedora/rpmfusion-free-release-$(rpm -E %fedora).noarch.rpm \
 								https://download1.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-$(rpm -E %fedora).noarch.rpm
-
-dnf -y remove xorg-x11-server-common iscsi-initiator-utils-iscsiuio iscsi-initiator-utils clevis-luks atmel-firmware kernel*
 dnf -y clean all
 echo "Done!"
 

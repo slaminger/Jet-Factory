@@ -5,6 +5,9 @@ tar_tmp=${NAME}.tar
 # Set Image name
 guestfs_img="SWR-${NAME}.img"
 
+# Clean previously made image file
+[[ -f ${guestfs_img} ]] && rm ${guestfs_img}
+
 # Allocate size
 size=$(du -hs -BM "${out}/${NAME}/" | head -n1 | awk '{print int($1/4)*4 + 4 + 512;}')M
 
@@ -12,7 +15,7 @@ size=$(du -hs -BM "${out}/${NAME}/" | head -n1 | awk '{print int($1/4)*4 + 4 + 5
 dd if=/dev/zero of=${guestfs_img} bs=1 count=0 seek=${size}
 
 # Create ext4 partition
-mkfs.ext4 ${guestfs_img}
+mkfs.ext4 -F ${guestfs_img}
 
 # Create tmp directroy
 mkdir -p /tmp/${NAME}_tmp_mnt
