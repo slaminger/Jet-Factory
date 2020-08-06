@@ -14,11 +14,17 @@ dd if=/dev/zero of=${guestfs_img} bs=1 count=0 seek=${size}
 # Create ext4 partition
 mkfs.ext4 ${guestfs_img}
 
-# Create temporary tar archive
-tar cf ${tar_tmp} "${out}/${NAME}/"
+# Create tmp directroy
+mkdir -p /tmp/${NAME}_tmp_mnt
 
-# EXtract tar content to image
-tar xOf  ${tar_tmp} | dd of=${guestfs_img} bs=1M
+# Mount the disk image
+mount ${guestfs_img} /tmp/${NAME}_tmp_mnt
+
+# Copy files
+cp -a ${out}/${NAME}/* /tmp/${NAME}_tmp_mnt
+
+# Unmount image
+umount /tmp/${NAME}_tmp_mnt
 
 # Remove unneeded files
-rm -r ${tar_tmp} "${out}/${NAME}/"
+rm -r "${out}/${NAME}/"

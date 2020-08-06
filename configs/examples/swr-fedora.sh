@@ -1,7 +1,7 @@
 #!/usr/bin/bash
 
 echo "Installing XFCE, Nvidia drivers and switch config..."
-dnf -y update && dnf -y install @kde-desktop lightdm git onboard langpacks-ja upower screen \
+dnf -y update && dnf -y install @xfce-desktop lightdm git onboard langpacks-ja upower screen \
  								wpa_supplicant alsa-utils alsa-ucm alsa-plugins-pulseaudio pulseaudio pulseaudio-module-x11 \
   								pulseaudio-utils xorg-x11-xinit xorg-x11-drv-libinput xorg-x11-drv-wacom xorg-x11-drv-evdev \
 								https://kojipkgs.fedoraproject.org//vol/fedora_koji_archive02/packages/xorg-x11-server/1.19.6/7.fc28/aarch64/xorg-x11-server-Xdmx-1.19.6-7.fc28.aarch64.rpm \
