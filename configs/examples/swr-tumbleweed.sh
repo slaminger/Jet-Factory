@@ -1,7 +1,11 @@
 #!/usr/bin/bash
 
 echo "Installing XFCE, Nvidia drivers and switch config..."
-zypper up -y && zypper -t pattern xfce && zypper -n clean all
+zypper ar -n https://download.opensuse.org/repositories/home:/Azkali:/Switch-L4T/openSUSE_Tumbleweed/home:Azkali:Switch-L4T.repo
+zypper -n refresh
+zypper -n in libnvmpi1_0_0 nvidia-l4t-* xorg-x11-server*-1.19.6
+zypper -n in switch-configs
+zypper -n clean all
 systemctl enable r2p bluetooth NetworkManager
 echo "Done!"
 
@@ -14,5 +18,6 @@ echo "Done!"
 echo "Configuring user..."
 useradd -m -G wheel,video,audio,users -s /bin/bash suse
 echo "suse:suse" | chpasswd && echo "root:root" | chpasswd
+chown -R 1000:1000 /home/suse
 sed -i 's/#%wheel        ALL=(ALL) ALL/%wheel        ALL=(ALL) ALL/g' /etc/sudoers
 echo "Done!"
