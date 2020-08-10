@@ -1,4 +1,4 @@
-#!/usr/bin/bash
+#!/bin/bash
 # CHROOT.SH : Chroot and add qemu binary if necessary
 if [[ ${AARCH} != "" ]]; then
 	wget -L https://raw.githubusercontent.com/dbhi/qus/main/register.sh
@@ -10,12 +10,7 @@ fi
 # Mount bind chroot dir
 mount --bind "${out}/${NAME}" "${out}/${NAME}"
 
-# Mount dev, proc, sys
-mount -t proc proc "${out}/${NAME}/proc/"
-mount --rbind /sys "${out}/${NAME}/sys/"
-mount --rbind /dev "${out}/${NAME}/dev/"
-
-# Copy vuild script
+# Copy build script
 cp "$(dirname ${cwd})/configs/examples/${CHROOT_SCRIPT}" "${out}/${NAME}"
 
 # Actual chroot

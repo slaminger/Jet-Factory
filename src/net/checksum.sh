@@ -1,4 +1,4 @@
-#!/usr/bin/bash
+#!/bin/bash
 
 # Cut sig name from SIG URL
 img_sig="${SIG##*/}"

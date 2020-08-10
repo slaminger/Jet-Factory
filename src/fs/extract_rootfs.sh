@@ -1,4 +1,4 @@
-#!/usr/bin/bash
+#!/bin/bash
 # EXTRACT_ROOTFS.SH: Extract Rootfs using libguetsfs-tools
 img="${out}/downloadedFiles/${img}"
 

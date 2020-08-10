@@ -1,4 +1,4 @@
-#!/usr/bin/bash
+#!/bin/bash
 # DL_FILE.SH: Download a file and check it's integrity if possible
 
 # Attempt to downlaod the image file

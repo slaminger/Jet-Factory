@@ -1,4 +1,4 @@
-#!/usr/bin/bash
+#!/bin/bash
 # MAKEIMG.SH : Create rootfs image file
 tar_tmp=${NAME}.tar
 

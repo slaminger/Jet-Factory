@@ -1,4 +1,4 @@
-#!/usr/bin/bash
+#!/bin/bash
 # HEKATE.SH Install hekate to a rootfs image and pack to hekate format
 hekate_version=5.3.2
 nyx_version=0.9.3

@@ -1,4 +1,5 @@
-#!/usr/bin/bash
+#!/bin/bash
+
 # ENTRYPOINT.SH : Manages options, and launches the sub scripts.
 
 # Store the script directory
