@@ -4,6 +4,7 @@ image: ubuntu:focal
   stage: build
   before_script:
     - apt-get update
+    - DEBIAN_FRONTEND=noninteractive
     - apt-get -qq -y install qemu qemu-user-static binfmt-support arch-install-scripts linux-image-generic libguestfs-tools wget p7zip-full xz-utils
     - chmod +x src/*.sh
     - mkdir -p linux/
