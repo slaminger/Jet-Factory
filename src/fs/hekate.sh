@@ -21,6 +21,9 @@ rm "${out}/downloadedFiles/${hekate_zip}" "${out}/downloadedFiles/${hekate_bin}"
 # Create switchroot install folder
 mkdir -p "${out}/downloadedFiles/switchroot/install/"
 
+# Unmount image
+umount "/mnt/${NAME}_tmp_mnt"
+
 # Split parts to output directory
 split -b4290772992 --numeric-suffixes=0 "${guestfs_img}" "${out}/downloadedFiles/switchroot/install/l4t."
 

@@ -30,10 +30,10 @@ cp -a ${out}/${NAME}/* "/mnt/${NAME}_tmp_mnt"
 if [[ ${HEKATE} == "true" ]]; then
 	echo "Creating hekate installable partition..."
 	source ${cwd}/fs/hekate.sh
+else
+	# Or unmount image
+	umount "/mnt/${NAME}_tmp_mnt"
 fi
-
-# Unmount image
-umount "/mnt/${NAME}_tmp_mnt"
 
 # Remove unneeded files
 rm -r "${out}/${NAME}/" "/mnt/${NAME}_tmp_mnt"
