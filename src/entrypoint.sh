@@ -69,10 +69,4 @@ source ${cwd}/fs/chroot.sh
 echo "Creating image file..."
 source ${cwd}/fs/makeimg.sh
 
-# Convert to hekate format
-if [[ ${HEKATE} == "true" ]]; then
-	echo "Creating hekate installable partition..."
-	source ${cwd}/fs/hekate.sh
-fi
-
 echo "Done !"

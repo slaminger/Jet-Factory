@@ -1,4 +1,4 @@
-NAME=arch
+NAME=Arch
 URL=http://os.archlinuxarm.org/os/ArchLinuxARM-aarch64-latest.tar.gz
 SIG=
 AARCH=aarch64

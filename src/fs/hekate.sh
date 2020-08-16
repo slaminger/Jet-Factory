@@ -13,13 +13,17 @@ wget -nc -q --show-progress ${hekate_url} -P "${out}/downloadedFiles/"
 7z x "${out}/downloadedFiles/${hekate_zip}" -o"${out}/downloadedFiles/"
 
 # Upload hekate payload using libguestfs
-virt-copy-in -a ${guestfs_img} "${out}/downloadedFiles/${hekate_bin}" /usr/lib/firmware/reboot_payload.bin
+cp "${out}/downloadedFiles/${hekate_bin}" "/mnt/${NAME}_tmp_mnt/lib/firmware/reboot_payload.bin"
 
 # Remove unneeded
 rm "${out}/downloadedFiles/${hekate_zip}" "${out}/downloadedFiles/${hekate_bin}"
+
+# Create switchroot install folder
+mkdir -p "${out}/downloadedFiles/switchroot/install/"
 
 # Split parts to output directory
 split -b4290772992 --numeric-suffixes=0 "${guestfs_img}" "${out}/downloadedFiles/switchroot/install/l4t."
 
 # 7zip the folder
-7z a "SWR-${img}.7z" "${out}/downloadedFiles/{bootloader,switchroot}"
+7z a "SWR-${NAME}.7z" "${out}/downloadedFiles/bootloader"
+7z a "SWR-${NAME}.7z" "${out}/downloadedFiles/switchroot"

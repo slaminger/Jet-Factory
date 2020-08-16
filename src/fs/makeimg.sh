@@ -18,16 +18,22 @@ dd if=/dev/zero of=${guestfs_img} bs=1 count=0 seek=${size}
 mkfs.ext4 -F ${guestfs_img}
 
 # Create tmp directroy
-mkdir -p /tmp/${NAME}_tmp_mnt
+mkdir -p "/mnt/${NAME}_tmp_mnt"
 
 # Mount the disk image
-mount ${guestfs_img} /tmp/${NAME}_tmp_mnt
+mount ${guestfs_img} "/mnt/${NAME}_tmp_mnt"
 
 # Copy files
-cp -a ${out}/${NAME}/* /tmp/${NAME}_tmp_mnt
+cp -a ${out}/${NAME}/* "/mnt/${NAME}_tmp_mnt"
+
+# Convert to hekate format
+if [[ ${HEKATE} == "true" ]]; then
+	echo "Creating hekate installable partition..."
+	source ${cwd}/fs/hekate.sh
+fi
 
 # Unmount image
-umount /tmp/${NAME}_tmp_mnt
+umount "/mnt/${NAME}_tmp_mnt"
 
 # Remove unneeded files
-rm -r "${out}/${NAME}/"
+rm -r "${out}/${NAME}/" "/mnt/${NAME}_tmp_mnt"

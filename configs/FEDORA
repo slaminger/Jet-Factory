@@ -1,4 +1,4 @@
-NAME=fedora
+NAME=Fedora
 URL=http://distrib-coffee.ipsl.jussieu.fr/pub/linux/fedora/linux/releases/32/Server/aarch64/images/Fedora-Server-32-1.6.aarch64.raw.xz
 SIG=
 AARCH=aarch64
