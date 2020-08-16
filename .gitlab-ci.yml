@@ -6,12 +6,11 @@ image: ubuntu:focal
     - apt-get update
     - DEBIAN_FRONTEND=noninteractive apt-get -qq -y install qemu qemu-user-static binfmt-support arch-install-scripts linux-image-generic libguestfs-tools wget p7zip-full xz-utils
     - chmod +x src/*.sh
-    - mkdir -p linux/
 
 arch:
   extends: .prepare
   script:
-    - HEKATE=true DISTRO=ARCH ./src/entrypoint.sh linux/
+    - mkdir -p linux/ && HEKATE=true DISTRO=ARCH ./src/entrypoint.sh linux/
   artifacts:
     paths:
       - linux/SWR-Arch.img
@@ -19,7 +18,7 @@ arch:
 arch_hekate:
   extends: .prepare
   script:
-    - HEKATE=true DISTRO=ARCH ./src/entrypoint.sh linux/
+    - mkdir -p linux/ && HEKATE=true DISTRO=ARCH ./src/entrypoint.sh linux/
   artifacts:
     paths:
       - linux/SWR-Arch.7z
@@ -27,7 +26,7 @@ arch_hekate:
 fedora:
   extends: .prepare
   script:
-    - HEKATE=true DISTRO=FEDORA ./src/entrypoint.sh linux/
+    - mkdir -p linux/ && HEKATE=true DISTRO=FEDORA ./src/entrypoint.sh linux/
   artifacts:
     paths:
       - linux/SWR-Fedora.img
@@ -35,7 +34,7 @@ fedora:
 fedora_hekate:
   extends: .prepare
   script:
-    - HEKATE=true DISTRO=FEDORA ./src/entrypoint.sh linux/
+    - mkdir -p linux/ && HEKATE=true DISTRO=FEDORA ./src/entrypoint.sh linux/
   artifacts:
     paths:
       - linux/SWR-Fedora.7z
