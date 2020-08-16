@@ -11,7 +11,7 @@ fi
 
 # Check if it's a valid path
 if [[ ! -d ${out} ]]; then
-	echo "Not a valid directory! Exiting.."
+	echo "${out} is not a valid directory! Exiting.."
 	exit 1
 fi
 
