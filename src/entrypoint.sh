@@ -1,6 +1,19 @@
 #!/bin/bash
-
 # ENTRYPOINT.SH : Manages options, and launches the sub scripts.
+
+# If in docker, use the volume for linux
+if [[ -f /.dockerenv ]]; then
+	out="/root/linux"
+# Else get the last argument passed to the script
+else
+	out=$(realpath ${@:$#})
+fi
+
+# Check if it's a valid path
+if [[ ! -d ${out} ]]; then
+	echo "Not a valid directory! Exiting.."
+	exit 1
+fi
 
 # Store the script directory
 cwd=$(dirname "$(readlink -f "$0")")
@@ -11,72 +24,55 @@ while IFS= read -r -d $'\0' f; do
   options[i++]="$f"
 done < <(find $(dirname ${cwd})/configs/ -maxdepth 1 -type f -print0 )
 
-# Select DISTRO from configs files
-select opt in "${options[@]}"; do
-	source ${opt}
-	export $(cut -d= -f1 ${opt})
-	img="${URL##*/}"
-break;
-done
-
-# Script usage
-usage() {
-    echo "Usage: $0 [options]"
-    echo "Options:"
-	echo " -h, --hekate                 Build for Hekate"
-    echo " -u, --usage               Show this help text"
-}
-
-# Parse arguments
-options=$(getopt -n $0 -o hu --long hekate,usage -- "$@")
-
-# Check for errors in arguments or if no name was provided
-if [[ $? != "0" ]]; then usage; exit 1; fi
-
-# Evaluate arguments
-eval set -- "$options"
-while true; do
-    case "$1" in
-	-h | --hekate)  hekate=true; shift ;;
-    ? | -u | --usage) usage; exit 0 ;;
-    -- ) shift; break ;;
-    esac
-done
-
-# Get the last argument passed to the script to evaluate it later
-out=$(realpath ${@:$#})
-
-# The last argument must be a path pointing to a dir if not inside Docker
-if [[ ! -f /.dockerenv ]] && [[ ! -d ${out} ]]; then
-	usage
-	exit 1
-# If in docker, and not using --android flag, use the volume for linux
-elif [[ -f /.dockerenv ]]; then
-	out="/root/linux"
+if [[ ${DISTRO} == "" ]]; then
+	echo "Select a configuration: "
+	# Select DISTRO from configs files
+	select opt in "${options[@]}"; do
+		source ${opt}
+		export $(cut -d= -f1 ${opt})
+		img="${URL##*/}"
+	break;
+	done
+else
+	if [[ ${options[@]} =~ ${DISTRO} ]]; then
+		source $(dirname ${cwd})/configs/${DISTRO}
+		export $(cut -d= -f1 $(dirname ${cwd})/configs/${DISTRO})
+		img="${URL##*/}"
+	else
+		echo "${DISTRO} couldn't be found in the configs/ directory! Exiting now..."
+		exit 1
+	fi
 fi
 
-cd ${out}
 
-# Create the build directories if they don't exist
+echo "Preparing build directory..."
+cd ${out}
 mkdir -p ${out}/{${NAME},downloadedFiles}
 
-# Make scripts executable
+echo "Adding executable bit to the scripts..."
 chmod +x ${cwd}/{net,fs}/* $(dirname ${cwd})/configs/examples/*
 
-# Download the URL
+echo "Downloading necessary files..."
 source ${cwd}/net/dl_file.sh ${URL}
 
-# Checksum the URL
-[[ ${SIG} != "" ]] && source ${cwd}/net/checksum.sh
+if [[ ${SIG} != "" ]]; then
+	echo "Verifying file integrity..."
+	source ${cwd}/net/checksum.sh
+fi
 
-# Extract the image file/archive
+echo "Extracting and preparing for chroot..."
 source ${cwd}/fs/extract_rootfs.sh
 
-# Apply chroot configurations
+echo "Chrooting..."
 source ${cwd}/fs/chroot.sh
 
-# Pack the image
+echo "Creating image file..."
 source ${cwd}/fs/makeimg.sh
 
 # Convert to hekate format
-[[ ${hekate} == "true" ]] && source ${cwd}/fs/hekate.sh
+if [[ ${HEKATE} == "true" ]]; then
+	echo "Creating hekate installable partition..."
+	source ${cwd}/fs/hekate.sh
+fi
+
+echo "Done !"

@@ -11,5 +11,10 @@ COPY configs configs/
 COPY src src/
 RUN chmod +x src/*.sh
 
-VOLUME [ "/root/linux", "/root/android" ]
+ARG DISTRO
+ENV DISTRO=$DISTRO
+ARG HEKATE
+ENV HEKATE=$HEKATE
+
+VOLUME [ "/root/linux" ]
 ENTRYPOINT [ "/root/src/entrypoint.sh" ]
