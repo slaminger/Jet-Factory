@@ -27,3 +27,6 @@ split -b4290772992 --numeric-suffixes=0 "${guestfs_img}" "${out}/downloadedFiles
 # 7zip the folder
 7z a "SWR-${NAME}.7z" "${out}/downloadedFiles/bootloader"
 7z a "SWR-${NAME}.7z" "${out}/downloadedFiles/switchroot"
+
+# Clean hekate files
+rm -r "${out}/downloadedFiles/bootloader" "${out}/downloadedFiles/switchroot"
