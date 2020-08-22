@@ -26,13 +26,16 @@ pacman -Syyu --noconfirm jetson-ffmpeg tegra-ffmpeg tegra-bsp \
 			bluez sudo lightdm lightdm-gtk-greeter plasma \
 			kde-applications plasma-wayland-session alsa-utils \
 			dhcpcd networkmanager switch-configs xorg-server-tegra \
-			systemd-suspend-modules joycond-git
+			joycond-git
 
 # Post install configurations
 yes | pacman -Scc
 
 ## Audio fix
 sed -i 's/.*default-sample-rate.*/default-sample-rate = 48000/' /etc/pulse/daemon.conf
+
+## SDDM fix
+echo "SUBSYSTEM=="graphics", KERNEL=="fb[0-9]", TAG+="master-of-seat"" > /etc/udev/rules.d/69-nvidia-seat.rules
 
 systemctl enable r2p bluetooth lightdm NetworkManager
 echo brcmfmac > /etc/suspend-modules.conf
