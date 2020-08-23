@@ -3,7 +3,7 @@
 
 # Attempt to downlaod the image file
 if [[ ${URL} != "" ]]; then
-	wget -q -nc --show-progress ${URL} -P "${out}/downloadedFiles/"
+	wget -q -nc --show-progress "${URL}" -P "${out}/downloadedFiles/"
 else
 	echo "No URL found !"
 	exit 1

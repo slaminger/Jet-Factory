@@ -3,7 +3,7 @@
 img="${out}/downloadedFiles/${img}"
 
 # Handles .raw disk image
-if [[ ${img} =~ ".raw.xz" ]]; then
+if [[ ${img} =~ .raw.xz ]]; then
 	# Uncompress (xz format) the filesystem archive file
 	[[ $(file -b --mime-type "${img}") == "application/x-xz" ]] && unxz "${img}"
 
@@ -11,18 +11,18 @@ if [[ ${img} =~ ".raw.xz" ]]; then
 	extracted_img=${img%.*}
 
 	# Search for a partition labeled root (lvm2 handling) and extract it
-	partition=$(virt-filesystems -a ${extracted_img} | grep "root")
+	partition=$(virt-filesystems -a "${extracted_img}" | grep "root")
 
-	# Store tar archive as img 
+	# Store tar archive as img
 	img="${out}/downloadedFiles/tmp.tar.gz"
 
 	# Extract the partition from the image file
-	guestfish --ro -a ${extracted_img} -m ${partition} tgz-out / ${img}
+	guestfish --ro -a "${extracted_img}" -m "${partition}" tgz-out / "${img}"
 fi
 
 # Handles tar archive
-if [[ ${img} =~ ".tar" ]]; then
-	tar xf ${img} -C "${out}/${NAME}"
+if [[ ${img} =~ .tar ]]; then
+	tar xf "${img}" -C "${out}/${NAME}"
 else
 	echo "Unrecognzied format, exiting !"
 	exit 1

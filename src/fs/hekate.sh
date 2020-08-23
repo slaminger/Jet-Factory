@@ -32,5 +32,5 @@ split -b4290772992 --numeric-suffixes=0 "${guestfs_img}" "${out}/downloadedFiles
 7z a "SWR-${NAME}.7z" "${out}/downloadedFiles/switchroot"
 
 # Clean hekate files and image
-rm ${guestfs_img}
+rm "${guestfs_img}"
 rm -r "${out}/downloadedFiles/bootloader" "${out}/downloadedFiles/switchroot"
