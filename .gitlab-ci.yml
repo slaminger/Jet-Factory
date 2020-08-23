@@ -1,6 +1,21 @@
-image: ubuntu:focal
+shell check:
+  image: koalaman/shellcheck-alpine:stable
+  stage: test
+  before_script:
+    - shellcheck --version
+  script:
+    - shellcheck scr/**/*.sh
+
+shfmt:
+  image: mvdan/shfmt:v3.1.0-alpine
+  stage: test
+  before_script:
+    - shfmt -version
+  script:
+    - shfmt -ln posix -i 2 -ci -d scr/**/*.sh # path to your shell scripts
 
 .prepare:
+  image: ubuntu:focal
   stage: build
   before_script:
     - apt-get update

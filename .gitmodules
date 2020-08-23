@@ -1,4 +1,0 @@
-[submodule "configs/fedora/rpmbuilds/xorg-x11-server"]
-	path = configs/fedora/rpmbuilds/xorg-x11-server
-	url = https://src.fedoraproject.org/rpms/xorg-x11-server.git
-	branch = f28
