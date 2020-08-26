@@ -7,7 +7,7 @@ img_sig="${SIG##*/}"
 wget -q --show-progress "${SIG}" -P "${out}/downloadedFiles/"
 
 # MD5 Checksum
-if [[ ${SIG} =~ .md5 ]]; then
+if [[ "${SIG}" =~ .md5 ]]; then
 	md5sum --status -c "${out}/downloadedFiles/${img_sig}"
 	# SHA Checksum
 	# TODO

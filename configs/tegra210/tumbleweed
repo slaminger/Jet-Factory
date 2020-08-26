@@ -1,5 +1,5 @@
-NAME=Tumbleweed
+NAME=tumbleweed
 URL=http://download.opensuse.org/ports/aarch64/tumbleweed/images/openSUSE-Tumbleweed-ARM-KDE.aarch64-rootfs.aarch64-2020.06.15-Snapshot20200730.tar.xz
 SIG=
 AARCH=aarch64
-CHROOT_SCRIPT="swr-tumbleweed.sh"
+CHROOT_SCRIPT=swr-tumbleweed.sh

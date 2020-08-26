@@ -1,12 +1,11 @@
 #!/bin/bash
 # MAKEIMG.SH : Create rootfs image file
-tar_tmp=${NAME}.tar
 
 # Set Image name
-guestfs_img="SWR-${NAME}.img"
+guestfs_img="switchroot-${DISTRO}-$(date +%F).img"
 
 # Clean previously made image file
-[[ -f ${guestfs_img} ]] && rm "${guestfs_img}"
+[[ -f "${guestfs_img}" ]] && rm "${guestfs_img}"
 
 # Allocate size
 size=$(du -hs -BM "${out}/${NAME}/" | head -n1 | awk '{print int($1/4)*4 + 4 + 512;}')M
@@ -26,12 +25,11 @@ mount "${guestfs_img}" "/mnt/${NAME}_tmp_mnt"
 # Copy files
 cp -a "${out}/${NAME}/*" "/mnt/${NAME}_tmp_mnt"
 
-# Convert to hekate format
-if [[ ${HEKATE} == "true" ]]; then
+# Convert to hekate format or unmount image
+if [[ "${HEKATE}" == "true" ]]; then
 	echo "Creating hekate installable partition..."
 	source "${cwd}/fs/hekate.sh"
 else
-	# Or unmount image
 	umount "/mnt/${NAME}_tmp_mnt"
 fi
 

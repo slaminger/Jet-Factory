@@ -1,5 +1,5 @@
-NAME=Arch
+NAME=arch
 URL=http://os.archlinuxarm.org/os/ArchLinuxARM-aarch64-latest.tar.gz
 SIG=
 AARCH=aarch64
-CHROOT_SCRIPT="swr-arch.sh"
+CHROOT_SCRIPT=swr-arch.sh

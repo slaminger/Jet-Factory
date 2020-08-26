@@ -16,8 +16,9 @@ Usage: entrypoint.sh <dir>
 
 ```txt
 Variables:
-    DISTRO=ARCH       Set target build distribution using file found in `configs/` directory
-    HEKATE=true       Build hekate flashable image
+    DEVICE=tegra210   Device as set in the configs directory.
+    DISTRO=arch       Target distribution using file found in DEVICE folder.
+    HEKATE=true       Build hekate flashable image.
 ```
 
 ## Build example
@@ -33,7 +34,8 @@ Then, choose one of the two methods for building :
 - Option 1 Build without Docker :
 
 ```sh
-export DISTRO=ARCH
+export DISTRO=arch
+export DEVICE=tegra210
 sudo ./src/entrypoint.sh linux/
 ```
 
@@ -42,17 +44,17 @@ Or
 - Option 2 - Build with Docker :
 
 ```sh
-sudo docker run --privileged --rm -e DISTRO=ARCH -it -v "$PWD"/linux:/root/linux alizkan/jet-factory:latest
+sudo docker run --privileged --rm -it -e DISTRO=arch -e DEVICE=tegr210 -v "$PWD"/linux:/root/linux alizkan/jet-factory:latest
 ```
 
 ## Credits
 
 ### Special mentions
 
-@GavinDarkglider, @CTCaer, @ByLaws, @ave \
-For their work and contributions.
+@gavin_darkglider, @CTCaer, @ByLaws, @ave \
+For their various work and contributions to switchroot.
 
 ### Contributors
 
-@Stary2001, @Kitsumi, @parkerlreed, @AD2076, @PabloZaiden, @andrebraga \
-For their awesome work, support and contribution to this project
+@Stary2001, @Kitsumi, @parkerlreed, @AD2076, @PabloZaiden, @andrebraga1 \
+For their work, support and direct contribution to this project.

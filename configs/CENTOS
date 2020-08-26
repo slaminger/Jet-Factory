@@ -1,5 +1,0 @@
-NAME=CentOS
-URL=
-SIG=
-AARCH=aarch64
-CHROOT_SCRIPT="swr-centos.sh"

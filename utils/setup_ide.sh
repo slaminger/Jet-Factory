@@ -30,7 +30,7 @@ function doSetup()
             yes)
             docker run -d -p $IDE_PORT:$IDE_PORT \
                         --volume //var/run/docker.sock:/var/run/docker.sock \
-                        --volume $(dirname $(dirname $(readlink -fm $0))):/root/workspace \
+                        --volume "$(dirname "$(dirname "$(readlink -fm "$0")")")":/root/workspace \
                         --user root \
                         --workdir //root \
                         --name $CONTAINER_NAME \
@@ -70,7 +70,7 @@ function doSetup()
 
     if [[ ${persist} == no ]]; then
         #Clone Repo Down
-        bashCommand "git clone \"$GIT_REPO_TO_CLONE\" \"$WORKSPACE_DIRECTORY\""        
+        bashCommand "git clone \"$GIT_REPO_TO_CLONE\" \"$WORKSPACE_DIRECTORY\""
     fi
     #Start IDE
     bashCommand "code-server --install-extension ms-azuretools.vscode-docker"

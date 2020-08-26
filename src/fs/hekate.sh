@@ -2,9 +2,13 @@
 # HEKATE.SH Install hekate to a rootfs image and pack to hekate format
 hekate_version=5.3.2
 nyx_version=0.9.3
-hekate_url=https://github.com/CTCaer/hekate/releases/download/v${hekate_version}/hekate_ctcaer_${hekate_version}_Nyx_${nyx_version}.zip
-hekate_zip=${hekate_url##*/}
-hekate_bin=hekate_ctcaer_${hekate_version}.bin
+hekate_url="https://github.com/CTCaer/hekate/releases/download/v${hekate_version}/hekate_ctcaer_${hekate_version}_Nyx_${nyx_version}.zip"
+hekate_zip="${hekate_url##*/}"
+hekate_bin="hekate_ctcaer_${hekate_version}.bin"
+zip_final="switchroot-${DISTRO}.7z"
+
+# Apply ext label
+[[ -n "${HEKATE_ID}" ]] && e2label "${guestfs_img}" "${HEKATE_ID}"
 
 # Download hekate
 wget -nc -q --show-progress ${hekate_url} -P "${out}/downloadedFiles/"
@@ -28,9 +32,8 @@ umount "/mnt/${NAME}_tmp_mnt"
 split -b4290772992 --numeric-suffixes=0 "${guestfs_img}" "${out}/downloadedFiles/switchroot/install/l4t."
 
 # 7zip the folder
-7z a "SWR-${NAME}.7z" "${out}/downloadedFiles/bootloader"
-7z a "SWR-${NAME}.7z" "${out}/downloadedFiles/switchroot"
+7z a "${zip_final}" "${out}/downloadedFiles/switchroot/install/"
 
 # Clean hekate files and image
-rm "${guestfs_img}"
+rm "${out}/${guestfs_img}"
 rm -r "${out}/downloadedFiles/bootloader" "${out}/downloadedFiles/switchroot"
