@@ -2,7 +2,7 @@
 # MAKEIMG.SH : Create rootfs image file
 
 # Set Image name
-guestfs_img="switchroot-${DISTRO}-$(date +%F).img"
+guestfs_img="switchroot-${DISTRO}.img"
 
 # Clean previously made image file
 [[ -f "${guestfs_img}" ]] && rm "${guestfs_img}"
@@ -23,7 +23,7 @@ mkdir -p "/mnt/${NAME}_tmp_mnt"
 mount "${guestfs_img}" "/mnt/${NAME}_tmp_mnt"
 
 # Copy files
-cp -a "${out}/${NAME}/*" "/mnt/${NAME}_tmp_mnt"
+cp -a "${out}"/"${NAME}"/* "/mnt/${NAME}_tmp_mnt"
 
 # Convert to hekate format or unmount image
 if [[ "${HEKATE}" == "true" ]]; then
@@ -33,5 +33,5 @@ else
 	umount "/mnt/${NAME}_tmp_mnt"
 fi
 
-# Remove unneeded files
+# Clean unneeded files
 rm -r "${out}/${NAME}/" "/mnt/${NAME}_tmp_mnt"

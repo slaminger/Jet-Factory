@@ -22,11 +22,11 @@ for distro_found in "${distro_avalaible[@]}"; do
 		set -a && . "${distro_found}" && set +a
 		export img="${URL##*/}"
 		break
-	else
-		echo "${DISTRO} couldn't be found in the config directory! Exiting now..."
-		exit 1
 	fi
 done
+
+[[ -z "${img}" ]] && \
+    echo "${DISTRO} couldn't be found in the config directory! Exiting now..." && exit 1
 
 echo -e "\nPreparing build directory...\n"
 cd "${out}" || exit

@@ -8,7 +8,8 @@ hekate_bin="hekate_ctcaer_${hekate_version}.bin"
 zip_final="switchroot-${DISTRO}.7z"
 
 # Apply ext label
-[[ -n "${HEKATE_ID}" ]] && e2label "${guestfs_img}" "${HEKATE_ID}"
+[[ -n "${HEKATE_ID}" ]] && echo -e "\nAssigning e2label: ${HEKATE_ID}\n" && \
+	e2label "${guestfs_img}" "${HEKATE_ID}"
 
 # Download hekate
 wget -nc -q --show-progress ${hekate_url} -P "${out}/downloadedFiles/"

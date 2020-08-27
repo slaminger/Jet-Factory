@@ -44,7 +44,7 @@ Or
 - Option 2 - Build with Docker :
 
 ```sh
-sudo docker run --privileged --rm -it -e DISTRO=arch -e DEVICE=tegr210 -v "$PWD"/linux:/root/linux alizkan/jet-factory:latest
+sudo docker run --privileged --rm -it -e DISTRO=arch -e DEVICE=tegra210 -v "$PWD"/linux:/root/linux alizkan/jet-factory:latest
 ```
 
 ## Credits
