@@ -1,5 +1,5 @@
 NAME=centos
-URL=
+URL=http://mirrors.ircam.fr/pub/CentOS/8.2.2004/isos/aarch64/CentOS-8.2.2004-aarch64-minimal.iso
 SIG=
 AARCH=aarch64
 CHROOT_SCRIPT=swr-centos.sh

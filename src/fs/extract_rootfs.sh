@@ -4,11 +4,12 @@ img="${out}/downloadedFiles/${img}"
 
 # Handles .raw disk image
 if [[ "${img}" =~ .raw.xz ]]; then
-	# Uncompress (xz format) the filesystem archive file
-	[[ "$(file -b --mime-type "${img}")" == "application/x-xz" ]] && unxz "${img}"
-
 	# https://www.gnu.org/software/bash/manual/html_node/Shell-Parameter-Expansion.html
 	extracted_img="${img%.*}"
+
+	# Uncompress (xz format) the filesystem archive file
+	[[ "$(file -b --mime-type "${img}")" == "application/x-xz" ]] && \
+		[[ ! -e "${extracted_img}" ]] && unxz "${img}"
 
 	# Search for a partition labeled root (lvm2 handling) and extract it
 	partition="$(virt-filesystems -a "${extracted_img}" | grep "root")"
@@ -18,6 +19,7 @@ if [[ "${img}" =~ .raw.xz ]]; then
 
 	# Extract the partition from the image file
 	guestfish --ro -a "${extracted_img}" -m "${partition}" tgz-out / "${img}"
+# elif [[ "${img}" =~ .iso ]]; then
 fi
 
 # Handles tar archive
