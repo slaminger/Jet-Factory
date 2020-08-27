@@ -6,9 +6,7 @@ RUN apt install -y qemu qemu-user-static binfmt-support \
 				libguestfs-tools wget p7zip-full xz-utils
 
 WORKDIR /root/
-COPY configs configs/
-COPY src src/
-RUN chmod +x src/*.sh
+VOLUME /out
 
 ARG DISTRO
 ENV DISTRO=${DISTRO}
@@ -19,5 +17,7 @@ ENV HEKATE=${HEKATE}
 ARG HEKATE_ID
 ENV HEKATE_ID=${HEKATE_ID}
 
-VOLUME /out
+COPY configs configs/
+COPY src src/
+RUN chmod +x src/*.sh
 ENTRYPOINT /root/src/entrypoint.sh /out/
