@@ -47,6 +47,12 @@ Or
 sudo docker run --privileged --rm -it -e DISTRO=arch -e DEVICE=tegra210 -v "$PWD"/linux:/out alizkan/jet-factory:latest
 ```
 
+*You can override the workdir used in the docker, to use your own changes, without rebuilding the image by adding this repository directory as a volume to the docker command above.*
+
+```sh
+-v $(pwd):build/
+```
+
 ## Credits
 
 ### Special mentions
