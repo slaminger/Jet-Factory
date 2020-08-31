@@ -6,6 +6,8 @@ hekate_url="https://github.com/CTCaer/hekate/releases/download/v${hekate_version
 hekate_zip="${hekate_url##*/}"
 hekate_bin="hekate_ctcaer_${hekate_version}.bin"
 zip_final="switchroot-${DISTRO}.7z"
+modules_dir="${out}/${NAME}/"
+[[ -L "${modules_dir}/lib" ]] && modules_dir="${out}/${NAME}/usr/"
 
 # Apply ext label
 [[ -n "${HEKATE_ID}" ]] && echo -e "\nAssigning e2label: ${HEKATE_ID}\n" && \
@@ -17,8 +19,8 @@ wget -nc -q --show-progress ${hekate_url} -P "${out}/downloadedFiles/"
 # Extract hekate
 7z x "${out}/downloadedFiles/${hekate_zip}" -o"${out}/downloadedFiles/"
 
-# Upload hekate payload using libguestfs
-cp "${out}/downloadedFiles/${hekate_bin}" "/mnt/${NAME}_tmp_mnt/lib/firmware/reboot_payload.bin"
+# Upload hekate payload
+cp "${out}/downloadedFiles/${hekate_bin}" "${modules_dir}/lib/firmware/reboot_payload.bin"
 
 # Remove unneeded
 rm "${out}/downloadedFiles/${hekate_zip}" "${out}/downloadedFiles/${hekate_bin}"
@@ -26,8 +28,8 @@ rm "${out}/downloadedFiles/${hekate_zip}" "${out}/downloadedFiles/${hekate_bin}"
 # Create switchroot install folder
 mkdir -p "${out}/downloadedFiles/switchroot/install/"
 
-# Unmount image
-umount "/mnt/${NAME}_tmp_mnt"
+# Create 4MB aligned image
+virt-make-fs --type=ext4 --format=raw --size=+$((512+${aligned_size_extra}))M "${out}/${NAME}/" ${guestfs_img}
 
 # Split parts to output directory
 split -b4290772992 --numeric-suffixes=0 "${guestfs_img}" "${out}/downloadedFiles/switchroot/install/l4t."
@@ -36,5 +38,4 @@ split -b4290772992 --numeric-suffixes=0 "${guestfs_img}" "${out}/downloadedFiles
 7z a "${zip_final}" "${out}/downloadedFiles/switchroot/install/"
 
 # Clean hekate files and image
-rm "${out}/${guestfs_img}"
-rm -r "${out}/downloadedFiles/bootloader" "${out}/downloadedFiles/switchroot"
+rm -r "${out}/${guestfs_img}" "${out}/downloadedFiles/bootloader" "${out}/downloadedFiles/switchroot"

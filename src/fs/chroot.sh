@@ -20,20 +20,22 @@ mount --bind "${out}/${NAME}" "${out}/${NAME}"
 cp "$(dirname "${cwd}")/configs/${DEVICE}/files/${CHROOT_SCRIPT}" "${out}/${NAME}"
 
 # Handle resolv.conf
-[[ -e "${out}/${NAME}/etc/resolv.conf" && ! -L "${out}/${NAME}/etc/resolv.conf" ]] && \
+if [[ -f "${out}/${NAME}/etc/resolv.conf" ]]; then
 	cp "${out}/${NAME}/etc/resolv.conf" "${out}/${NAME}/etc/resolv.conf.bak"
-
-echo "namserver 8.8.8.8" > resolv.conf
-cp resolv.conf "${out}/${NAME}/etc/resolv.conf"
+	echo "namserver 8.8.8.8" > resolv.conf
+	cp resolv.conf "${out}/${NAME}/etc/resolv.conf"
+fi
 
 # Actual chroot
 arch-chroot "${out}/${NAME}" /bin/bash /"${CHROOT_SCRIPT}"
 
 # Clean temp files
-rm "${out}/${NAME}/${CHROOT_SCRIPT}" resolv.conf
+rm "${out}/${NAME}/${CHROOT_SCRIPT}"
 
-[[ -e "${out}/${NAME}/etc/resolv.conf.bak" ]] && \
+if [[ -f "${out}/${NAME}/etc/resolv.conf.bak" ]]; then
 	cp "${out}/${NAME}/etc/resolv.conf.bak" "${out}/${NAME}/etc/resolv.conf"
+	rm resolv.conf
+fi
 
 # Umount chroot dir
 umount "${out}/${NAME}"

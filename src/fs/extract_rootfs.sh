@@ -3,7 +3,7 @@
 img="${out}/downloadedFiles/${img}"
 
 # Handles .raw disk image
-if [[ "${img}" =~ .raw.xz ]]; then
+if [[ "${img}" == *.raw.xz ]]; then
 	# https://www.gnu.org/software/bash/manual/html_node/Shell-Parameter-Expansion.html
 	extracted_img="${img%.*}"
 
@@ -19,7 +19,10 @@ if [[ "${img}" =~ .raw.xz ]]; then
 
 	# Extract the partition from the image file
 	guestfish --ro -a "${extracted_img}" -m "${partition}" tgz-out / "${img}"
-# elif [[ "${img}" =~ .iso ]]; then
+
+	# Cleanup temporary file
+elif [[ "${img}" == *.iso ]]; then
+	echo ""
 fi
 
 # Handles tar archive
@@ -29,3 +32,5 @@ else
 	echo "Unrecognzied format, exiting !"
 	exit 1
 fi
+
+[[ -e "${out}/downloadedFiles/tmp.tar.gz" ]] && rm "${out}/downloadedFiles/tmp.tar.gz"
