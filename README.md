@@ -4,8 +4,10 @@ Create live and flashable linux distribution root filesystem images.
 
 ## Dependencies
 
+Ubuntu 19.10:
+
 ```txt
-sudo apt-get install qemu qemu-user-static binfmt-support arch-install-scripts libguestfs-tools wget p7zip-full xz-utils zerofree bsdtar
+sudo apt-get install qemu qemu-user-static binfmt-support arch-install-scripts libguestfs-tools wget p7zip-full xz-utils zerofree libarchive-tools
 ```
 
 ## Usage

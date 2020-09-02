@@ -1,7 +1,7 @@
 #!/bin/bash
 # MAKEIMG.SH : Create rootfs image file
 
-# Set Image name
+# Set image name
 guestfs_img="switchroot-${DISTRO}.img"
 
 # Clean previously made image file

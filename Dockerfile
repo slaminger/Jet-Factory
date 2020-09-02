@@ -4,7 +4,7 @@ RUN apt update -y
 RUN apt install -y qemu qemu-user-static binfmt-support \
 				arch-install-scripts linux-image-generic \
 				libguestfs-tools wget p7zip-full xz-utils \
-				zerofree bsdtar
+				zerofree libarchive-tools
 
 WORKDIR /build
 VOLUME /out
