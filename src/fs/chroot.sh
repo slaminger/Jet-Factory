@@ -30,11 +30,11 @@ fi
 arch-chroot "${out}/${NAME}" /bin/bash /"${CHROOT_SCRIPT}"
 
 # Clean temp files
-rm "${out}/${NAME}/${CHROOT_SCRIPT}"
+rm -rf "${out}/${NAME}/${CHROOT_SCRIPT}"
 
 if [[ -f "${out}/${NAME}/etc/resolv.conf.bak" ]]; then
 	cp "${out}/${NAME}/etc/resolv.conf.bak" "${out}/${NAME}/etc/resolv.conf"
-	rm resolv.conf
+	rm -rf resolv.conf
 fi
 
 # Umount chroot dir
@@ -42,6 +42,6 @@ umount "${out}/${NAME}"
 
 if [[ -n "${AARCH}" && -e "/proc/sys/fs/binfmt_misc/qemu-${AARCH}" ]]; then
 	./register.sh -- -r
-	rm "${out}/${NAME}/usr/bin/qemu-${AARCH}-static"
-	rm ./register.sh
+	rm -rf "${out}/${NAME}/usr/bin/qemu-${AARCH}-static"
+	rm -rf ./register.sh
 fi

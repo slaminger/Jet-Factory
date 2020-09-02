@@ -22,15 +22,16 @@ if [[ "${img}" == *.raw.xz ]]; then
 
 	# Cleanup temporary file
 elif [[ "${img}" == *.iso ]]; then
-	echo ""
+	echo "Iso not implemented yet.."
+	exit 1
 fi
 
 # Handles tar archive
 if [[ "${img}" =~ .tar ]]; then
-	tar xf "${img}" -C "${out}/${NAME}"
+	bsdtar xpf "${img}" -C "${out}/${NAME}"
 else
 	echo "Unrecognzied format, exiting !"
 	exit 1
 fi
 
-[[ -e "${out}/downloadedFiles/tmp.tar.gz" ]] && rm "${out}/downloadedFiles/tmp.tar.gz"
+[[ -f "${out}/downloadedFiles/tmp.tar.gz" ]] && rm -rf "${out}/downloadedFiles/tmp.tar.gz"

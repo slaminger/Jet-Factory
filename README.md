@@ -5,7 +5,7 @@ Create live and flashable linux distribution root filesystem images.
 ## Dependencies
 
 ```txt
-sudo apt-get install qemu qemu-user-static binfmt-support arch-install-scripts libguestfs-tools wget p7zip-full xz-utils
+sudo apt-get install qemu qemu-user-static binfmt-support arch-install-scripts libguestfs-tools wget p7zip-full xz-utils zerofree bsdtar
 ```
 
 ## Usage
