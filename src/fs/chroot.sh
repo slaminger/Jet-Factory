@@ -16,6 +16,12 @@ fi
 # Mount bind chroot dir
 mount --bind "${out}/${NAME}" "${out}/${NAME}"
 
+# Add cache dir configuration
+if [ ! -z "$CACHE_DIR" ]; then
+  mkdir "${out}/cache" &> /dev/null || true
+  mount --bind "${out}/cache" "${out}/${NAME}/${CACHE_DIR}" || exit
+fi
+
 # Copy build script
 cp "$(dirname "${cwd}")/configs/${DEVICE}/files/${CHROOT_SCRIPT}" "${out}/${NAME}"
 
@@ -30,7 +36,7 @@ fi
 arch-chroot "${out}/${NAME}" /bin/bash /"${CHROOT_SCRIPT}"
 
 # Clean temp files
-rm -rf "${out}/${NAME}/${CHROOT_SCRIPT}"
+rm -rf "${out}/${NAME}/${CHROOT_SCRIPT}" "${out}/cache
 
 if [[ -f "${out}/${NAME}/etc/resolv.conf.bak" ]]; then
 	cp "${out}/${NAME}/etc/resolv.conf.bak" "${out}/${NAME}/etc/resolv.conf"
