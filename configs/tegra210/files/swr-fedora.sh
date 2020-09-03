@@ -7,7 +7,7 @@ dnf config-manager --add-repo https://download.opensuse.org/repositories/home:/A
 dnf -y install @xfce-desktop-environment lightdm firefox onboard langpacks-ja upower screen wpa_supplicant alsa-utils \
 				alsa-ucm alsa-plugins-pulseaudio pulseaudio pulseaudio-module-x11 pulseaudio-utils \
 				xorg-x11-xinit xorg-x11-drv-libinput xorg-x11-drv-wacom xorg-x11-drv-evdev \
-				nvidia-l4t-* libnvmpi1_0_0 libav* libsw* \
+				nvidia-l4t-* libnvmpi1_0_0 \
 				https://download1.rpmfusion.org/free/fedora/rpmfusion-free-release-$(rpm -E %fedora).noarch.rpm \
 				https://download1.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-$(rpm -E %fedora).noarch.rpm
 dnf install --downloadonly -y switch-configs

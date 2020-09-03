@@ -20,18 +20,19 @@ if [[ "${img}" == *.raw.xz ]]; then
 	# Extract the partition from the image file
 	guestfish --ro -a "${extracted_img}" -m "${partition}" tgz-out / "${img}"
 
-	# Cleanup temporary file
-elif [[ "${img}" == *.iso ]]; then
+	# Extract tmp.tar.gz
+	tar xpf "${img}" -C "${out}/${NAME}"
+
+	# Cleanup tmp.tar.gz
+	rm -rf "${out}/downloadedFiles/tmp.tar.gz"
+elif [[ "${img}" =~ .iso ]]; then
 	echo "Iso not implemented yet.."
 	exit 1
-fi
-
-# Handles tar archive
-if [[ "${img}" =~ .tar ]]; then
+elif [[ "${img}" =~ .tbz2 ]]; then
+	tar xpf "${img}" -C "${out}/${NAME}"
+elif [[ "${img}" =~ .tar ]]; then
 	bsdtar xpf "${img}" -C "${out}/${NAME}"
 else
 	echo "Unrecognzied format, exiting !"
 	exit 1
 fi
-
-[[ -f "${out}/downloadedFiles/tmp.tar.gz" ]] && rm -rf "${out}/downloadedFiles/tmp.tar.gz"
