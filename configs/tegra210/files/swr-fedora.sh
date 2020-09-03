@@ -15,7 +15,7 @@ rpm -ivvh --force /var/cache/dnf/home_Azkali_Switch-L4T-*/packages/switch-config
 dnf -y clean all
 
 # Userland configuration
-systemctl enable bluetooth r2p NetworkManager upower lightgm
+systemctl enable bluetooth r2p NetworkManager upower lightdm
 sed -i 's/#keyboard=/keyboard=onboard/' /etc/lightdm/lightdm-gtk-greeter.conf
 systemctl set-default graphical.target
 

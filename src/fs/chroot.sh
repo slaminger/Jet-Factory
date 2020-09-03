@@ -36,7 +36,7 @@ fi
 arch-chroot "${out}/${NAME}" /bin/bash /"${CHROOT_SCRIPT}"
 
 # Clean temp files
-rm -rf "${out}/${NAME}/${CHROOT_SCRIPT}" "${out}/cache
+rm -rf "${out}/${NAME}/${CHROOT_SCRIPT}" "${out}/cache"
 
 if [[ -f "${out}/${NAME}/etc/resolv.conf.bak" ]]; then
 	cp "${out}/${NAME}/etc/resolv.conf.bak" "${out}/${NAME}/etc/resolv.conf"
