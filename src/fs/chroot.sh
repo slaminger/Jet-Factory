@@ -26,7 +26,7 @@ fi
 cp "$(dirname "${cwd}")/configs/${DEVICE}/files/${CHROOT_SCRIPT}" "${out}/${NAME}"
 
 # Handle resolv.conf
-if [[ -f "${out}/${NAME}/etc/resolv.conf" ]]; then
+if [[ -e "${out}/${NAME}/etc/resolv.conf" ]]; then
 	cp "${out}/${NAME}/etc/resolv.conf" "${out}/${NAME}/etc/resolv.conf.bak"
 	echo "namserver 8.8.8.8" > resolv.conf
 	cp resolv.conf "${out}/${NAME}/etc/resolv.conf"
@@ -38,7 +38,7 @@ arch-chroot "${out}/${NAME}" /bin/bash /"${CHROOT_SCRIPT}"
 # Clean temp files
 rm -rf "${out}/${NAME}/${CHROOT_SCRIPT}" "${out}/cache"
 
-if [[ -f "${out}/${NAME}/etc/resolv.conf.bak" ]]; then
+if [[ -e "${out}/${NAME}/etc/resolv.conf.bak" ]]; then
 	cp "${out}/${NAME}/etc/resolv.conf.bak" "${out}/${NAME}/etc/resolv.conf"
 	rm -rf resolv.conf
 fi
