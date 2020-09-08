@@ -13,8 +13,8 @@ echo "Installing desktop packages"
 export DEBIAN_FRONTEND=noninteractive
 apt update
 yes | unminimize
-apt install -y openssh-server systemd wget gnupg nano sudo gnome-session gnome-terminal \
- ubuntu-desktop-minimal linux-firmware less bsdutils locales ||
+apt install -y openssh-server systemd wget gnupg nano sudo linux-firmware less bsdutils locales \
+ gnome-session gnome-session-wayland gnome-terminal gnome-initial-setup xxd ubuntu-desktop-minimal ||
 (
  rm -rf /usr/share/dict/words.pre-dictionaries-common
  apt --fix-broken install
@@ -45,14 +45,9 @@ apt install -y nvidia-l4t-init nvidia-l4t-multimedia nvidia-l4t-oem-config \
 #rm /opt/nvidia/l4t-packages/.nv-l4t-disable-boot-fw-update-in-preinstall
 echo "Done!"
 
-echo "Making users"
-useradd -m user
-usermod -a -G sudo user
-usermod -a -G video user
-/usr/sbin/chpasswd << EOF
-root:toor
-user:user
-EOF
+echo "Making firstboot"
+apt-get -y install --no-install-recommends oem-config-gtk/focal-updates
+rm /etc/machine-id
 echo "Done!"
 
 echo "Fixing broken nvidia shit"
@@ -60,13 +55,11 @@ cat << EOF > /etc/systemd/system/upower.service
 [Unit]
 Description=Daemon for power management
 Documentation=man:upowerd(8)
-
 [Service]
 Type=dbus
 BusName=org.freedesktop.UPower
 ExecStart=/usr/lib/upower/upowerd
 Restart=on-failure
-
 # Filesystem lockdown
 ProtectSystem=strict
 # Needed by keyboard backlight support
@@ -76,40 +69,30 @@ ReadWritePaths=/var/lib/upower
 StateDirectory=upower
 ProtectHome=true
 PrivateTmp=true
-
 # Network
 # PrivateNetwork=true would block udev's netlink socket
 IPAddressDeny=any
 RestrictAddressFamilies=AF_UNIX AF_NETLINK
-
 # Execute Mappings
 MemoryDenyWriteExecute=true
-
 # Modules
 ProtectKernelModules=true
-
 # Real-time
 RestrictRealtime=true
-
 # Privilege escalation
 NoNewPrivileges=true
-
 # Capabilities
 CapabilityBoundingSet=
-
 # System call interfaces
 LockPersonality=yes
 SystemCallArchitectures=native
 SystemCallFilter=@system-service
 SystemCallFilter=ioprio_get
-
 # Namespaces
 PrivateUsers=no
 RestrictNamespaces=no
-
 # Locked memory
 LimitMEMLOCK=0
-
 [Install]
 WantedBy=graphical.target
 EOF
@@ -242,14 +225,20 @@ btcdyn_default_btc_mode=5
 btcdyn_btrssi_hyster=5
 btcdyn_dsns_rows=1
 btcdyn_dsns_row0=5,-120,0,-52,-72
-
 EOF
 
 systemctl enable upower
-#apt clean
+apt clean
 
 mkdir -p /usr/share/alsa/ucm/tegra-s/
 ln -s /usr/share/alsa/ucm/tegra-snd-t210ref-mobile-rt565x/HiFi /usr/share/alsa/ucm/tegra-s/HiFi
-sed 's/44100/48000/g' -i /etc/pulse/daemon.conf
+echo 'default-sample-rate = 48000' >> /etc/pulse/daemon.conf
+sed 's/0660/0777/g' -i /etc/udev/rules.d/99-tegra-devices.rules
+echo "Done!"
 
+echo "Fix broken ubuntu shit"
+sed 's/TimeoutStartSec=infinity/TimeoutStartSec=5/g' /usr/lib/systemd/system/systemd-time-wait-sync.service > /etc/systemd/system/systemd-time-wait-sync.service
+sed '/\[Service\]/a\\TimeoutStartSec=10' -i /usr/lib/systemd/system/ssh.service
+ln -fs /usr/lib/systemd/system/ssh.service /etc/systemd/system/sshd.service
+ln -fs /dev/null /etc/systemd/system/ssh.service
 echo "Done!"

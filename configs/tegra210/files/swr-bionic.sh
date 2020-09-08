@@ -1,5 +1,4 @@
 #!/bin/bash
-
 echo "Updating apt repos in rootfs"
 sed -i 's/http:\/\/ports\.ubuntu\.com\/ubuntu-ports\//http:\/\/turul.canonical.com\//g' /etc/apt/sources.list
 # echo 'deb https://repo.download.nvidia.com/jetson/common r32.4 main
@@ -13,7 +12,6 @@ echo "Installing desktop packages"
 export DEBIAN_FRONTEND=noninteractive
 apt update
 yes | unminimize
-apt install -y wget
 echo "Done!"
 
 echo "Adding switchroot repo"
@@ -32,13 +30,12 @@ apt update -y && apt install -y nintendo-switch-meta joycond \
 	nvidia-l4t-3d-core nvidia-l4t-multimedia-utils nvidia-l4t-gstreamer \
 	nvidia-l4t-firmware nvidia-l4t-xusb-firmware nvidia-l4t-configs \
 	nvidia-l4t-tools nvidia-l4t-core nvidia-l4t-x11 nvidia-l4t-apt-source \
-	nvidia-l4t-cuda nvidia-l4t-wayland
-apt-get download nvidia-l4t-core
-dpkg -i nvidia-l4t-core 
+	nvidia-l4t-cuda nvidia-l4t-wayland nvidia-l4t-core xxd || true
+	
 apt clean
+sed 's/44100/48000/g' -i /etc/pulse/daemon.conf
 echo "Done"
 # rm /opt/nvidia/l4t-packages/.nv-l4t-disable-boot-fw-update-in-preinstall
 
 # mkdir -p /usr/share/alsa/ucm/tegra-s/
 # ln -s /usr/share/alsa/ucm/tegra-snd-t210ref-mobile-rt565x/HiFi /usr/share/alsa/ucm/tegra-s/HiFi
-sed 's/44100/48000/g' -i /etc/pulse/daemon.conf
