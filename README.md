@@ -36,9 +36,7 @@ Then, choose one of the two methods for building :
 - Option 1 Build without Docker :
 
 ```sh
-export DISTRO=arch
-export DEVICE=tegra210
-sudo ./src/entrypoint.sh linux/
+sudo DEVICE=tegra210 DISTRO=arch ./src/entrypoint.sh linux/
 ```
 
 Or
