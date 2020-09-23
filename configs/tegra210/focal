@@ -1,5 +1,5 @@
 NAME=focal
-URL=http://cdimage.ubuntu.com/ubuntu-base/releases/20.04/release/ubuntu-base-20.04-base-arm64.tar.gz
+URL=http://cdimage.ubuntu.com/ubuntu-base/releases/20.04/release/ubuntu-base-20.04.1-base-arm64.tar.gz
 SIG=
 AARCH=aarch64
 CHROOT_SCRIPT=swr-focal.sh
