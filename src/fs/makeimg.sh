@@ -8,8 +8,8 @@ guestfs_img="switchroot-${DISTRO}.img"
 [[ -f "${zip_final}" ]] && rm -rf "${zip_final}"
 
 if [[ -n "${HEKATE_ID}" ]]; then
-	hekate_version=5.3.2
-	nyx_version=0.9.3
+	hekate_version=5.3.3
+	nyx_version=0.9.4
 	hekate_url="https://github.com/CTCaer/hekate/releases/download/v${hekate_version}/hekate_ctcaer_${hekate_version}_Nyx_${nyx_version}.zip"
 	hekate_zip="${hekate_url##*/}"
 	hekate_bin="hekate_ctcaer_${hekate_version}.bin"

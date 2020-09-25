@@ -24,6 +24,14 @@ if [ -n "$CACHE_DIR" ]; then
   mount --bind "${out}/cache" "${out}/${NAME}/${CACHE_DIR}" || exit
 fi
 
+if [ -e "${out}/switchroot/${DISTRO}/update.tar.gz" ]; then
+  tar xhpf "${out}/switchroot/${DISTRO}/update.tar.gz" -C "${out}/${NAME}"
+fi
+
+if [ -e "${out}/switchroot/${DISTRO}/modules.tar.gz" ]; then
+  tar xhpf "${out}/switchroot/${DISTRO}/modules.tar.gz" -C "${out}/${NAME}"
+fi
+
 # Copy build script
 cp "$(dirname "${cwd}")/configs/${DEVICE}/files/${CHROOT_SCRIPT}" "${out}/${NAME}"
 
