@@ -64,8 +64,11 @@ if [[ "${HEKATE}" == "true" ]]; then
 	7z a "${zip_final}" "${out}/downloadedFiles/switchroot/"
 
 	# Clean hekate files and image
-	rm -rf "${out}/${guestfs_img}" "${out}/downloadedFiles/bootloader" "${out}/downloadedFiles/switchroot"
-fi
+	rm -rf "${out}/${NAME}/" "${out}/${guestfs_img}" "${out}/downloadedFiles/bootloader" "${out}/downloadedFiles/switchroot"
 
-# Clean unneeded files
-rm -rf "${out}/${NAME}/"
+	echo -e "\nDone ! Hekate flashable 7zip resides in ${out}/${zip_final}"
+else
+	# Clean unneeded files
+	rm -rf "${out}/${NAME}/"
+	echo -e "\nDone ! Image resides in ${out}/${guestfs_img}"
+fi

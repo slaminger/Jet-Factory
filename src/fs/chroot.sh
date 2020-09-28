@@ -36,7 +36,7 @@ fi
 cp "$(dirname "${cwd}")/configs/${DEVICE}/files/${CHROOT_SCRIPT}" "${out}/${NAME}"
 
 # Handle resolv.conf
-cp --dereference /etc/resolv.conf "${out}/${NAME}/etc/resolv.conf"
+cp --remove-destination --dereference /etc/resolv.conf "${out}/${NAME}/etc/resolv.conf"
 
 # Actual chroot
 arch-chroot "${out}/${NAME}" /bin/bash /"${CHROOT_SCRIPT}"
