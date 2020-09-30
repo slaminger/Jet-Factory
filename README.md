@@ -21,17 +21,16 @@ Variables:
     DEVICE=tegra210   Device as set in the configs directory.
     DISTRO=arch       Target distribution using file found in DEVICE folder.
     HEKATE=true       Build hekate flashable image.
+    HEKATE_ID=SWR-ARC Set a Hekate ID.
 ```
 
 ## Build example
 
-- First, create a directory for the build :
+- First, create a directory to store the build files :
 
 ```sh
 mkdir -p ./linux
 ```
-
-Then, choose one of the two methods for building :
 
 - Option 1 Build without Docker :
 
@@ -46,6 +45,8 @@ Or
 ```sh
 sudo docker run --privileged --rm -it -e DISTRO=arch -e DEVICE=tegra210 -v "$PWD"/linux:/out alizkan/jet-factory:latest
 ```
+
+### Docker tips
 
 *You can override the workdir used in the docker, to use your own changes, without rebuilding the image by adding this repository directory as a volume to the docker command above.*
 

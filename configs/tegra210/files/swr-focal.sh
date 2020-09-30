@@ -1,5 +1,5 @@
 #!/bin/bash
-export DEBIAN_FRONTEND=noninteractive
+set +e
 
 echo "Updating apt repos in rootfs"
 sed -e 's/http:\/\/ports\.ubuntu\.com\/ubuntu-ports\//http:\/\/turul.canonical.com\//g' \
@@ -10,7 +10,8 @@ touch /opt/nvidia/l4t-packages/.nv-l4t-disable-boot-fw-update-in-preinstall
 echo "Done!"
 
 echo "Installing desktop packages"
-apt update
+export DEBIAN_FRONTEND=noninteractive
+apt update -y
 yes | unminimize
 apt install -y openssh-server systemd wget gnupg nano sudo linux-firmware less bsdutils locales curl \
  gnome-session gnome-session-wayland gnome-terminal gnome-initial-setup xxd ubuntu-desktop-minimal ||
@@ -34,7 +35,7 @@ wget http://turul.canonical.com/pool/main/libf/libffi/libffi6_3.2.1-8_arm64.deb
 dpkg -i switchroot-newrepo_1.1_all.deb libffi6_3.2.1-8_arm64.deb
 rm switchroot-newrepo_1.1_all.deb libffi6_3.2.1-8_arm64.deb
 echo 'force-overwrite' > /etc/dpkg/dpkg.cfg.d/sadface
-apt update
+apt update -y
 apt dist-upgrade -y; apt install -y nintendo-switch-meta joycond
 apt install -y nvidia-l4t-init nvidia-l4t-multimedia nvidia-l4t-oem-config \
  nvidia-l4t-3d-core nvidia-l4t-multimedia-utils nvidia-l4t-gstreamer \

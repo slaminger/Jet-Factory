@@ -1,4 +1,6 @@
 #!/bin/bash
+set +e
+
 echo "Updating apt repos in rootfs"
 sed -i 's/http:\/\/ports\.ubuntu\.com\/ubuntu-ports\//http:\/\/turul.canonical.com\//g' /etc/apt/sources.list
 # echo 'deb https://repo.download.nvidia.com/jetson/common r32.4 main
