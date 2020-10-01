@@ -36,7 +36,7 @@ dpkg -i switchroot-newrepo_1.1_all.deb libffi6_3.2.1-8_arm64.deb
 rm switchroot-newrepo_1.1_all.deb libffi6_3.2.1-8_arm64.deb
 echo 'force-overwrite' > /etc/dpkg/dpkg.cfg.d/sadface
 apt update -y
-apt dist-upgrade -y; apt install -y nintendo-switch-meta 
+apt dist-upgrade -y; apt install -y nintendo-switch-meta joycond
 apt install -y nvidia-l4t-init nvidia-l4t-multimedia nvidia-l4t-oem-config \
  nvidia-l4t-3d-core nvidia-l4t-multimedia-utils nvidia-l4t-gstreamer \
  nvidia-l4t-firmware nvidia-l4t-xusb-firmware nvidia-l4t-configs \
