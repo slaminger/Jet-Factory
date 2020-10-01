@@ -27,7 +27,7 @@ rm switchroot-newrepo_1.1_all.deb
 echo "Done"
 
 echo "Installing Tegra210 BSP, Switch config and Joycond"
-apt update -y && apt install -y nintendo-switch-meta joycond \
+apt update -y && apt install -y nintendo-switch-meta \
 	nvidia-l4t-init nvidia-l4t-multimedia nvidia-l4t-oem-config \
 	nvidia-l4t-3d-core nvidia-l4t-multimedia-utils nvidia-l4t-gstreamer \
 	nvidia-l4t-firmware nvidia-l4t-xusb-firmware nvidia-l4t-configs \

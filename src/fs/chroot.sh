@@ -45,7 +45,7 @@ arch-chroot "${out}/${NAME}" /bin/bash /"${CHROOT_SCRIPT}"
 rm -rf "${out}/${NAME}/${CHROOT_SCRIPT}" "${out}/cache"
 
 # Umount chroot dir
-umount "${out}/${NAME}"
+umount -l "${out}/${NAME}"
 
 if [[ -n "${AARCH}" && ! -e "/proc/sys/fs/binfmt_misc/qemu-${AARCH}" && $(uname -m) != ${AARCH} ]]; then
 	"${out}/downloadedFiles/register.sh" -- -r
