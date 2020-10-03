@@ -13,8 +13,11 @@ echo "Installing desktop packages"
 export DEBIAN_FRONTEND=noninteractive
 apt update -y
 yes | unminimize
-apt install -y openssh-server systemd wget gnupg nano sudo linux-firmware less bsdutils locales curl \
- gnome-session gnome-session-wayland gnome-terminal gnome-initial-setup xxd ubuntu-desktop-minimal ||
+apt install -y openssh-server systemd wget gnupg nano \
+ sudo linux-firmware less bsdutils locales curl \
+ gnome-session gnome-session-wayland gnome-terminal \
+ gnome-initial-setup xxd ubuntu-desktop-minimal \
+ dialog gir1.2-appindicator3-0.1 ||
 (
  rm -rf /usr/share/dict/words.pre-dictionaries-common
  apt --fix-broken install

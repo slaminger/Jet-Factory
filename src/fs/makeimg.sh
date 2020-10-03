@@ -20,10 +20,13 @@ if [[ -n "${HEKATE_ID}" ]]; then
 	wget -nc -q --show-progress ${hekate_url} -P "${out}/downloadedFiles/"
 
 	# Extract hekate
-	7z x "${out}/downloadedFiles/${hekate_zip}" ${hekate_bin} -o"${modules_dir}/lib/firmware/reboot_payload.bin"
+	7z x "${out}/downloadedFiles/${hekate_zip}" ${hekate_bin}
+
+	# Copy hekate bin
+	mv "${hekate_bin}" "${modules_dir}/lib/firmware/"
 
 	# Remove unneeded
-	rm "${out}/downloadedFiles/${hekate_zip}"
+	rm "${out}/downloadedFiles/${hekate_zip}" ${hekate_bin}
 fi
 
 # Create image

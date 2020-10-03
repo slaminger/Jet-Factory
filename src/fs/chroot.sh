@@ -29,7 +29,7 @@ if [ -e "${out}/switchroot/${DISTRO}/update.tar.gz" ]; then
 fi
 
 if [ -e "${out}/switchroot/${DISTRO}/modules.tar.gz" ]; then
-  tar xhpf "${out}/switchroot/${DISTRO}/modules.tar.gz" -C "${out}/${NAME}"
+  tar xhpf "${out}/switchroot/${DISTRO}/modules.tar.gz" -C "${out}/${NAME}/lib/"
 fi
 
 # Copy build script
