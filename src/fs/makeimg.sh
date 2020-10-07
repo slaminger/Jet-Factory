@@ -26,7 +26,7 @@ if [[ -n "${HEKATE_ID}" ]]; then
 	mv "${hekate_bin}" "${modules_dir}/lib/firmware/"
 
 	# Remove unneeded
-	rm "${out}/downloadedFiles/${hekate_zip}" ${hekate_bin}
+	rm "${out}/downloadedFiles/${hekate_zip}" 
 fi
 
 # Create image
