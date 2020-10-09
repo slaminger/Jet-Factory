@@ -12,6 +12,7 @@ zypper -n in onboard upower screen wpa_supplicant alsa-utils \
 	nvidia-l4t-3d-core nvidia-l4t-multimedia-utils \
 	nvidia-l4t-firmware nvidia-l4t-configs nvidia-l4t-tools \
 	nvidia-l4t-core nvidia-l4t-x11 nvidia-l4t-cuda nvidia-l4t-wayland \
+	switch-wireless-drivers \
 	lightdm onboard lightdm-gtk-greeter
 # zypper -n in --oldpackage xorg-x11-server-1.19.6 xorg-x11-server-extra-1.19.6 xorg-x11-server-source-1.19.6
 zypper -n in switch-configs

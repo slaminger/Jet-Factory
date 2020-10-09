@@ -13,6 +13,7 @@ dnf -y install @xfce-desktop-environment lightdm lightdm-gtk-greeter firefox onb
 				nvidia-l4t-3d-core nvidia-l4t-multimedia-utils \
 				nvidia-l4t-firmware nvidia-l4t-configs nvidia-l4t-tools \
 				nvidia-l4t-core nvidia-l4t-x11 nvidia-l4t-cuda nvidia-l4t-wayland \
+				switch-wireless-drivers \
 				https://download1.rpmfusion.org/free/fedora/rpmfusion-free-release-$(rpm -E %fedora).noarch.rpm \
 				https://download1.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-$(rpm -E %fedora).noarch.rpm
 
@@ -32,9 +33,6 @@ systemctl set-default graphical.target
 
 # SDDM fix
 echo "SUBSYSTEM=="graphics", KERNEL=="fb[0-9]", TAG+="master-of-seat"" > /etc/udev/rules.d/69-nvidia-seat.rules
-
-# Wi-Fi sleep issues fix
-# echo brcmfmac >etc/modules-load.d/brcmfmac.conf
 
 # Audio Fix
 sed 's/44100/48000/g' -i /etc/pulse/daemon.conf
