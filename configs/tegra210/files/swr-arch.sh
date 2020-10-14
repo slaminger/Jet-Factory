@@ -20,12 +20,19 @@ pacman -Syy
 pacman -R linux-aarch64 --noconfirm
 
 echo -e "\n\nBeginning packages installation!"
-pacman -Syyu --noconfirm jetson-ffmpeg tegra-ffmpeg tegra-bsp \
-			xorg-xrandr xorg-xinput xorg-xinit onboard \
-			wpa_supplicant dialog pulseaudio pulseaudio-alsa \
-			bluez sudo lightdm lightdm-gtk-greeter plasma \
-			kde-applications plasma-wayland-session alsa-utils \
-			dhcpcd networkmanager switch-configs xorg-server-tegra \
+pacman -Syyu --noconfirm jetson-ffmpeg \
+			tegra-bsp \
+			onboard \
+			wpa_supplicant \
+			dialog \
+			pulseaudio \
+			pulseaudio-alsa \
+			bluez \
+			sudo \
+			alsa-utils \
+			dhcpcd \
+			networkmanager \
+			switch-configs \
 			joycond-git
 
 # Post install configurations
@@ -37,7 +44,5 @@ sed -i 's/.*default-sample-rate.*/default-sample-rate = 48000/' /etc/pulse/daemo
 ## SDDM fix
 echo "SUBSYSTEM=="graphics", KERNEL=="fb[0-9]", TAG+="master-of-seat"" > /etc/udev/rules.d/69-nvidia-seat.rules
 
-systemctl enable r2p bluetooth lightdm NetworkManager
-echo brcmfmac > /etc/suspend-modules.conf
-sed -i 's/#keyboard=/keyboard=onboard/' /etc/lightdm/lightdm-gtk-greeter.conf
+systemctl enable r2p bluetooth NetworkManager
 usermod -aG video,audio,wheel alarm
