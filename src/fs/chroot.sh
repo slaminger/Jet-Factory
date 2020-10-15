@@ -10,10 +10,10 @@ else
 fi
 
 # Check if architecture is already registered in the .lock file
-lock="$(grep -qxF -- "${AARCH}" "${out}/.lock")"
+lock="$(grep -xF "${AARCH}" "${out}/.lock")"
 
 # If an architecture is  already registered increment the counter
-if [[ ${lock} = 1 ]]; then
+if [[ -z ${lock} ]]; then
 	# Get current lock count
 	lock_count=$(sed 's/'${AARCH}' //g' "${out}/.lock")
 
@@ -26,7 +26,7 @@ else
 	echo "${AARCH} 1" > "${out}/.lock"
 fi
 
-if [[ ${same_cpu_arch} = 0 ]] && [[ ${lock} = 1 ]]; then
+if [[ ${same_cpu_arch} = 0 ]] && [[ -z ${lock} ]]; then
 	if [ ! -f /proc/sys/fs/binfmt_misc/register ]; then
 		if ! mount binfmt_misc -t binfmt_misc /proc/sys/fs/binfmt_misc; then
 	        exit 1
@@ -79,7 +79,7 @@ arch-chroot "${out}/${NAME}" /bin/bash /"${CHROOT_SCRIPT}"
 umount -l "${out}/${NAME}"
 
 # Check lock status
-if [[ ${lock} = 1 ]]; then
+if [[ -z ${lock} ]]; then
 	# Get current lock count
 	lock_count=$(sed 's/'${AARCH}' //g' "${out}/.lock")
 

@@ -11,14 +11,29 @@ if [[ "${img}" == *.raw.xz ]]; then
 	[[ "$(file -b --mime-type "${img}")" == "application/x-xz" ]] && \
 		[[ ! -e "${extracted_img}" ]] && unxz "${img}"
 
-	# Search for a partition labeled root (lvm2 handling) and extract it
-	partition="$(virt-filesystems -a "${extracted_img}" | grep "root")"
+	rootfs="$(virt-filesystems -a "${extracted_img}" | grep "root")"
+	if [[ -z ${rootfs} ]]; then
+		# Search for a partition labeled root (lvm2 handling) and extract it
+		parts_sizes="$(virt-filesystems -la "${extracted_img}" | awk 'NR > 1 {print $5}')"
+		i=0
+
+		for p_size in $parts_sizes; do
+			if [[ -z $biggest ]] || [[ ${!biggest} -lt ${p_size} ]]; then
+				declare size_$i=$p_size
+				biggest=size_$i
+				((i=i+1))
+			fi
+		done
+
+		# Get biggest partition 
+		rootfs=${!biggest}
+	fi
 
 	# Store tar archive as img
 	img="${out}/downloadedFiles/tmp.tar.gz"
 
 	# Extract the partition from the image file
-	guestfish --ro -a "${extracted_img}" -m "${partition}" tgz-out / "${img}"
+	guestfish --ro -a "${extracted_img}" -m "${rootfs}" tgz-out / "${img}"
 
 	# Extract tmp.tar.gz
 	tar xpf "${img}" -C "${out}/${NAME}"
