@@ -1,5 +1,16 @@
 #!/bin/bash
-# CHROOT.SH : Arch-Chroot with qemu binary (if needed)
+# CHROOT.SH : Arch-Chroot with QEMU CPU architecture emulation support
+
+# Check if a lock is present indicating that another instance is running.
+if [[ -f "${out}/.lock" ]]; then
+	echo -e "\n\t\tAnother instance of Jet-Factory is currently running, waiting until process finishes...\t"
+	while [[ -f "${out}/.lock" ]]; do
+		sleep 10
+	done
+fi
+
+touch "${out}/.lock"
+
 if [[ $(uname -m) != ${AARCH} ]]; then
 	if [ ! -f /proc/sys/fs/binfmt_misc/register ]; then
 		if ! mount binfmt_misc -t binfmt_misc /proc/sys/fs/binfmt_misc; then
@@ -41,9 +52,6 @@ cp --remove-destination --dereference /etc/resolv.conf "${out}/${NAME}/etc/resol
 # Actual chroot
 arch-chroot "${out}/${NAME}" /bin/bash /"${CHROOT_SCRIPT}"
 
-# Clean temp files
-rm -rf "${out}/${NAME}/${CHROOT_SCRIPT}" "${out}/cache"
-
 # Umount chroot dir
 umount -l "${out}/${NAME}"
 
@@ -51,3 +59,6 @@ if [[ -n "${AARCH}" && ! -e "/proc/sys/fs/binfmt_misc/qemu-${AARCH}" && $(uname 
 	"${out}/downloadedFiles/register.sh" -- -r
 	rm -rf "${out}/${NAME}/usr/bin/qemu-${AARCH}-static" "${out}/downloadedFiles/register.sh"
 fi
+
+# Clean temp files
+rm -rf "${out}/${NAME}/${CHROOT_SCRIPT}" "${out}/cache" "${out}/.lock"
