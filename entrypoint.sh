@@ -14,7 +14,7 @@ guestfs_img="switchroot-${DISTRO}.img"
 
 # Hekate Specific :
 
-# Output name of hekate build 
+# Output name of target hekate build 
 zip_final="switchroot-${DISTRO}.7z"
 hekate_version=5.3.3
 nyx_version=0.9.4
@@ -24,38 +24,18 @@ hekate_bin="hekate_ctcaer_${hekate_version}.bin"
 
 # Helper functions :
 
-check() {
-	if [[ ! -d "${out}" ]]; then
-		echo "${out} is not a valid directory! Exiting.."
-		exit 1
+get_file() {
+	export img="${URL##*/}"
+
+	echo -e "Downloading necessary files...\n"
+	if [[ ! -e "${out}/downloadedFiles/${img%.*}" ]]; then
+		wget -q -nc --show-progress "${URL}" -P "${out}/downloadedFiles/"
 	fi
-
-	if [[ ! -e "$(dirname "${cwd}")"/configs/"${DEVICE}" ]]; then
-		echo "No directory for device: ${DEVICE} found in configs directory..."
-		exit 1
-	fi
-
-	# Read configs dir for config files
-	distro_avalaible=("$(dirname "${cwd}")"/configs/"${DEVICE}"/*)
-
-	for distro_found in "${distro_avalaible[@]}"; do
-		if [[ ${DISTRO} == "${distro_found##*/}" ]]; then
-			set -a && . "${distro_found}" && set +a
-			export img="${URL##*/}"
-			break
-		fi
-	done
-
-	if [[ -z "${img}" ]]; then
-	    echo "${DISTRO} couldn't be found in the config directory! Exiting now..."
-	    exit 1
-	fi
-
 }
 
 hashsum() {
 	if [[ -n "${SIG}" ]]; then
-		echo -e "\nVerifying file integrity...\n" && \
+		echo -e "Verifying file integrity...\n" && \
 		
 		# Cut sig name from SIG URL
 		img_sig="${SIG##*/}"
@@ -72,68 +52,119 @@ hashsum() {
 	fi
 }
 
+cleanup() {
+	echo -e "Trying to unmount failed build\n"
+
+	# Unmount cache when done
+	[[ -n "$CACHE_DIR" ]] && umount "${out}/cache"
+
+	# Unmount chroot dir
+	[[ -d "${build_dir}" ]] && umount -R "${build_dir}"
+	
+	echo -e "Cleaning build files...\n"
+
+	# Remove lock file if empty, meaning no more instance is running.
+	[[ -f "${out}/.lock" && ! -s "${out}/.lock" ]] && rm -rf "${out}/.lock"
+
+	[[ -d "${build_dir}" ]] && rm -rf "${build_dir}"
+
+	echo -e "Cleaning done\n"
+}
+
 # Core functions :
 
 prepare() {
-	if [[ -d "${out}/${NAME}" ]]; then
-		echo -e "Cleaning previous build directory...\n"
-		rm -rf "${out}/${NAME}"
+	echo -e "Checking variables\n"
+
+	if [[ ! -d "${out}" ]]; then
+		echo "${out} is not a valid directory! Exiting.."
+		exit 1
+	fi
+
+	if [[ -z "${DEVICE}" ]]; then
+		echo "No device specified. Exiting !"
+		exit 1
+	fi
+
+	if [[ ! -e "${cwd}/configs/${DEVICE}" ]]; then
+		echo "No device name : ${DEVICE} could be found in config. Exiting !"
+		exit 1
+	fi
+
+	# Read configs dir for config files
+	distro_avalaible=(${cwd}/configs/${DEVICE}/*)
+
+	for distro_found in "${distro_avalaible[@]}"; do
+		if [[ ${DISTRO} == "${distro_found##*/}" ]]; then
+			set -a && . "${distro_found}" && set +a
+			break
+		fi
+	done
+
+	if [[ -z "${URL}" ]]; then
+		echo "No URL found. Exiting."
+		exit 1
+	fi
+
+	if [[ -z "${CHROOT_SCRIPT}" ]]; then
+	    echo "No CHROOT_SCRIPT found. Exiting !"
+	    exit 1
 	fi
 
 	echo -e "Preparing build directory...\n"
-	cd "${out}"
-	mkdir -p "${out}/${NAME}" "${out}/downloadedFiles"
+	build_dir="${out}/${DEVICE}-${DISTRO}"
+	mkdir -p "${build_dir}" "${out}/downloadedFiles"
 
 	echo -e "Adding executable bit to the scripts...\n"
-	chmod +x "${cwd}"/{net,fs}/* "$(dirname "${cwd}")"/configs/"${DEVICE}"/files/*
-
-	echo -e "Downloading necessary files...\n"
-	if [[ ! -e "${out}/downloadedFiles/${img%.*}" ]]; then
-		if [[ -n "${URL}" ]]; then
-			wget -q -nc --show-progress "${URL}" -P "${out}/downloadedFiles/"
-		else
-			echo "No URL found !";exit 1;
-		fi
-	fi
+	chmod +x ${cwd}/configs/${DEVICE}/files/*.sh ${cwd}/*.sh
 }
 
-extrct_rootfs() {
-	echo -e "\nExtracting and preparing for chroot...\n"
+extract_rootfs() {
+	echo -e "Extracting and preparing for chroot...\n"
 
 	img="${out}/downloadedFiles/${img}"
 	for format in $images_format; do
-		[[ ${img%.*} = *$format ]] && is_iso=1 && break;
+		if [[ ${img} = *$format ]]; then
+			is_iso=1
+			break
+		elif [[ ${img%.*} = *$format ]]; then
+			is_iso=1; img=${img%.*};
+			break
+		fi
 	done
 
-	# Handle rootfs extraction
 	if [[ "${img}" = *.tbz2 ]]; then
-		tar xpf --xattrs-include='*.*' --numeric-owner "${img}" -C "${out}/${NAME}"
-	elif [[ "${img}" =~ .tar ]]; then
-		bsdtar xpf --xattrs-include='*.*' --numeric-owner "${img}" -C "${out}/${NAME}"
-	elif [[ -n ${is_iso} ]]; then
+		tar xpf --xattrs-include='*.*' --numeric-owner "${img}" -C "${build_dir}"
+	fi
+
+	if [[ "${img}" =~ .tar ]]; then
+		bsdtar xpf --xattrs-include='*.*' --numeric-owner "${img}" -C "${build_dir}"
+	fi
+
+	if [[ -n ${is_iso} ]]; then
 		# Handle xz compressed images
 		if [[ "$(file -b --mime-type "${img}")" == "application/x-xz" ]]; then
 			[[ ! -e "${img%.*}" ]] && unxz "${img}"
-			img="${img%.*}"
 		fi
 
-		echo -e "Scanning image file for rootfs partition\n"
-		rootfs="$(guestfish -a "${img}" launch : inspect-os)"
+		# echo -e "Scanning image file for rootfs partition\n"
+		# rootfs="$(guestfish -a "${img}" launch : inspect-os)"
 
 		echo -e "Extracting partition from image file. This will take a while...\n"
-		virt-copy-out -a "${img}" -m "${rootfs}" / "${out}/${NAME}"
-	else
-		echo -e "Unrecognized format.\n"
-		exit 1
+		virt-copy-out -a "${img}" / "${build_dir}"
 	fi
 }
 
-chroot() {
-	echo -e "\nChrooting...\n"
+chroot_wrapper() {
+	echo -e "Chrooting...\n"
+
+	# Get OS acrhitecture using libgguestfs
 	AARCH=$(guestfish -a ${img} launch : inspect-os : inspect-get-arch | tail -1)
+
+	# Check if target and host architecture are the same
 	[[ "$(uname -m)" == "${AARCH}" ]] && same_arch=1
 
-	# Check if architecture is already registered in the .lock file
+	# Check if the architecture is already registered within a .lock file
 	if [[ -f "${out}/.lock" ]]; then
 		lock="$(grep -xF "${AARCH}" "${out}/.lock")"
 	else
@@ -152,6 +183,8 @@ chroot() {
 		lock_count=$((lock_count+1))
 	fi
 
+	# Register binary if the architecture differs
+	# and no other instance of same CPU emulation is happening
 	if [[ -z ${same_arch} && -z ${lock} ]]; then
 		if [ ! -f /proc/sys/fs/binfmt_misc/register ]; then
 			if ! mount binfmt_misc -t binfmt_misc /proc/sys/fs/binfmt_misc; then
@@ -160,48 +193,43 @@ chroot() {
 		fi
 		
 		if [[ ! -e "/proc/sys/fs/binfmt_misc/qemu-${AARCH}" ]]; then
-			wget -L -q -nc --show-progress https://raw.githubusercontent.com/dbhi/qus/main/register.sh -P "${out}/downloadedFiles/"
-			chmod +x "${out}/downloadedFiles/register.sh"
-			"${out}/downloadedFiles/register.sh" -s -- -p "${AARCH}"
-			cp "/usr/bin/qemu-${AARCH}-static" "${out}/${NAME}/usr/bin/"
+			"${cwd}/register.sh" -s -- -p "${AARCH}"
+			cp "/usr/bin/qemu-${AARCH}-static" "${build_dir}/usr/bin/"
 		fi
 	fi
 
 	# Mount bind chroot dir
-	mount --bind "${out}/${NAME}" "${out}/${NAME}"
+	mount --bind "${build_dir}" "${build_dir}"
+
+	# Add cache dir configuration
+	if [[ -n "${CACHE_DIR}" ]]; then
+		mkdir "${out}/cache"
+		mount --bind "${out}/cache" "${build_dir}/${CACHE_DIR}"
+	fi
 
 	# Mounts switchroot folder as boot folder if a hekate ID is given
 	if [[ -n ${HEKATE_ID} ]]; then
 		if [[ -e "${out}/switchroot/${DISTRO}" ]]; then
-			mount --bind "${out}/switchroot/${DISTRO}" "${out}/${NAME}/boot/"
+			mount --bind "${out}/switchroot/${DISTRO}" "${build_dir}/boot/"
 		fi
 
 		if [ -e "${out}/switchroot/${DISTRO}/update.tar.gz" ]; then
-			tar xhpf "${out}/switchroot/${DISTRO}/update.tar.gz" -C "${out}/${NAME}"
+			tar xhpf "${out}/switchroot/${DISTRO}/update.tar.gz" -C "${build_dir}"
 		fi
-
-	fi
-
-	# Add cache dir configuration
-	if [[ -n "$CACHE_DIR" ]]; then
-		mkdir "${out}/cache" &> /dev/null || true
-		mount --bind "${out}/cache" "${out}/${NAME}/${CACHE_DIR}" || exit
+		
+		if [ -e "${out}/switchroot/${DISTRO}/modules.tar.gz" ]; then
+			tar xhpf "${out}/switchroot/${DISTRO}/modules.tar.gz" -C "${build_dir}"
+		fi
 	fi
 
 	# Copy build script
-	cp "$(dirname "${cwd}")/configs/${DEVICE}/files/${CHROOT_SCRIPT}" "${out}/${NAME}"
+	cp "${cwd}/configs/${DEVICE}/files/${CHROOT_SCRIPT}" "${build_dir}"
 
 	# Handle resolv.conf
-	cp --remove-destination --dereference /etc/resolv.conf "${out}/${NAME}/etc/resolv.conf"
+	cp --remove-destination --dereference /etc/resolv.conf "${build_dir}/etc/resolv.conf"
 
 	# Actual chroot
-	arch-chroot "${out}/${NAME}" /bin/bash /"${CHROOT_SCRIPT}"
-
-	# Unmount switchroot boot dir
-	[[ -n ${HEKATE_ID} ]] && umount -l "${out}/${NAME}/boot"
-
-	# Unmount chroot dir
-	umount -l "${out}/${NAME}"
+	arch-chroot "${build_dir}" /bin/bash "/${CHROOT_SCRIPT}"
 
 	# Check lock status
 	if [[ -z ${lock} ]]; then
@@ -214,44 +242,31 @@ chroot() {
 			sed -i '/'${AARCH}'*/d' "${out}/.lock"
 
 			# Unregister binary if it wasn't set on script launch
-			"${out}/downloadedFiles/register.sh" -- -r -p ${AARCH}
+			"${cwd}/register.sh" -- -r -p ${AARCH}
 		else
 			# Decrement lock count in lock file
 			sed -i 's/'${AARCH}' '${lock_count}'/'${AARCH}' '$((lock_count-1))'/g' "${out}/.lock"
 		fi
 	fi
-
-	# Remove lock file if empty, meaning no more instance is running.
-	[[ ! -s "${out}/.lock" ]] && rm -rf "${out}/.lock"
-
-	# Clean qemu emulation files
-	if [[ -z ${same_arch} ]]; then
-		rm -rf "${out}/${NAME}/usr/bin/qemu-${AARCH}-static" "${out}/downloadedFiles/register.sh"
-	fi
-
-	[[ -n "$CACHE_DIR" ]] && umount -l "${out}/cache"
-
-	rm -rf "${out}/${NAME}/${CHROOT_SCRIPT}" 
 }
 
-create_image() {
-	echo -e "\nCreating image file...\n"
-
-	# Clean previously made image file or 7zip
-	[[ -f "${guestfs_img}" ]] && rm -rf "${guestfs_img}"
-	[[ -f "${zip_final}" ]] && rm -rf "${zip_final}"
+create_target() {
+	echo -e "Creating image file. This will take a while...\n"
 
 	if [[ -n "${HEKATE_ID}" ]]; then
-		modules_dir="${out}/${NAME}/"
-		[[ -L "${modules_dir}/lib" && -d "${modules_dir}/lib" ]] && modules_dir="${out}/${NAME}/usr/"
+		# Default payload storage would be /lib/
+		modules_dir="${build_dir}"
 
-		# Download hekate
+		# If /lib is a symlink then it should be placed in /usr/lib/
+		[[ -L "${modules_dir}/lib" && -d "${modules_dir}/lib" ]] && modules_dir="${build_dir}/usr/"
+
+		# Download hekate release
 		wget -nc -q --show-progress ${hekate_url} -P "${out}/downloadedFiles/"
 
-		# Extract hekate
+		# Extract hekate bin from releas
 		7z x "${out}/downloadedFiles/${hekate_zip}" ${hekate_bin}
 
-		# Copy hekate bin
+		# Copy hekate bin to filesystem
 		mv "${hekate_bin}" "${modules_dir}/lib/firmware/"
 
 		# Remove unneeded
@@ -259,49 +274,62 @@ create_image() {
 	fi
 
 	# Create image
-	virt-make-fs --type=ext4 --format=raw --size=+512MB "${out}/${NAME}/" ${guestfs_img}
+	virt-make-fs --type=ext4 --format=raw --size=+512MB "${build_dir}" ${guestfs_img}
 
 	# Zerofree the image produced
 	zerofree -n ${guestfs_img}
 
 	# Apply ext label
 	if [[ -n "${HEKATE_ID}" ]]; then
-		echo -e "\nAssigning e2label: ${HEKATE_ID}\n"
+		echo -e "Assigning e2label: ${HEKATE_ID}\n"
 		e2label "${guestfs_img}" "${HEKATE_ID}"
 	fi
 
-	# Convert to hekate format or create image
-	if [[ "${HEKATE}" == "true" ]]; then
-		echo "Creating hekate installable partition..."
-
-		# Create switchroot install folder
-		mkdir -p "${out}/downloadedFiles/switchroot/install/"
-
-		# Get build directory size
-		size="$(du -b -s "${guestfs_img}" | awk '{print int($1);}')"
-
-		# Alignement adjust to 4MB
-		aligned_size=$(((${size} + (4194304-1)) & ~(4194304-1)))
-
-		# Check if image needs alignement
-		align_check=$((${aligned_size} - ${size}))
-
-		# Align part if necessary
-		[[ ${align_check} -ne 0 ]] && dd if=/dev/zero bs=1 count=${align_check} >> ${guestfs_img}
-
-		# Split parts to output directory
-		split -b4290772992 --numeric-suffixes=0 "${guestfs_img}" "${out}/downloadedFiles/switchroot/install/l4t."
-
-		# 7zip the folder
-		7z a "${zip_final}" "${out}/downloadedFiles/switchroot/"
-
-		# Clean hekate files and image
-		rm -rf "${out}/${NAME}/" "${out}/${guestfs_img}" "${out}/downloadedFiles/bootloader" "${out}/downloadedFiles/switchroot"
-
-		echo -e "\nDone ! Hekate flashable 7zip resides in ${out}/${zip_final}"
+	if [[ "${HEKATE}" = "true" ]]; then
+		create_hekate_zip
+		echo -e "Done ! Hekate flashable 7zip resides in ${out}/${zip_final}"
 	else
-		# Clean unneeded files
-		rm -rf "${out}/${NAME}/"
-		echo -e "\nDone ! Image resides in ${out}/${guestfs_img}"
+		echo -e "Done ! Image resides in ${out}/${guestfs_img}"
 	fi
 }
+
+create_hekate_zip() {
+	# Convert to hekate format or create image
+	echo -e "Creating hekate installable partition...\n"
+
+	# Create switchroot install folder
+	switchroot_dir="${build_dir}/switchroot"
+	mkdir -p "${switchroot_dir}/install/"
+
+	# Get build directory size
+	size="$(du -b -s "${guestfs_img}" | awk '{print int($1);}')"
+
+	# Alignement adjust to 4MB
+	aligned_size=$(((${size} + (4194304-1)) & ~(4194304-1)))
+
+	# Check if image needs alignement
+	align_check=$((${aligned_size} - ${size}))
+
+	# Align part if necessary
+	if [[ ${align_check} -ne 0 ]]; then
+		dd if=/dev/zero bs=1 count=${align_check} >> ${guestfs_img}
+	fi
+
+	# Split parts to output directory
+	split -b4290772992 --numeric-suffixes=0 "${guestfs_img}" "${switchroot_dir}/install/l4t."
+
+	# 7zip the folder
+	7z a "${zip_final}" "${switchroot_dir}"
+
+	# Clean image
+	rm -rf "${out}/${guestfs_img}" 
+}
+
+cleanup
+prepare
+get_file
+hashsum
+extract_rootfs
+chroot_wrapper
+create_target
+cleanup

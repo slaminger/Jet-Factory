@@ -1,4 +1,3 @@
-NAME=bionic
 URL=https://developer.nvidia.com/embedded/L4T/r32_Release_v4.3/t210ref_release_aarch64/Tegra_Linux_Sample-Root-Filesystem_R32.4.3_aarch64.tbz2
 SIG=
 CHROOT_SCRIPT=swr-bionic.sh
