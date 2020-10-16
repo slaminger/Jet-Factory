@@ -24,13 +24,11 @@ ARG DEVICE
 ENV DEVICE=${DEVICE}
 ARG HEKATE
 ENV HEKATE=${HEKATE}
-ARG HEKATE_ID
-ENV HEKATE_ID=${HEKATE_ID}
 
 COPY configs configs/
-COPY src src/
+COPY entrypoint.sh /build
 COPY utils utils/
 
 RUN find /build -type f -iname "*.sh" -exec chmod +x {} \;
 
-CMD /build/src/entrypoint.sh /out/
+CMD /build/entrypoint.sh /out/

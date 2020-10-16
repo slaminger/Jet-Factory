@@ -21,7 +21,6 @@ Variables:
     DEVICE=tegra210   Device as set in the configs directory.
     DISTRO=arch       Target distribution using file found in DEVICE folder.
     HEKATE=true       Build hekate flashable image.
-    HEKATE_ID=SWR-ARC Set a Hekate ID.
 ```
 
 ## Build example
@@ -35,7 +34,7 @@ mkdir -p ./linux
 - Option 1 Build without Docker :
 
 ```sh
-sudo DEVICE=tegra210 DISTRO=arch ./src/entrypoint.sh linux/
+sudo DEVICE=tegra210 DISTRO=arch ./entrypoint.sh linux/
 ```
 
 Or

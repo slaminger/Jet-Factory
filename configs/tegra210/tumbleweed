@@ -1,5 +1,5 @@
 NAME=tumbleweed
 URL=http://download.opensuse.org/ports/aarch64/tumbleweed/appliances/openSUSE-Tumbleweed-ARM-KDE.aarch64-rootfs.aarch64.tar.xz
 SIG=
-AARCH=aarch64
 CHROOT_SCRIPT=swr-tumbleweed.sh
+HEKATE_ID=SWR-TUM
