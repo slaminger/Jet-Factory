@@ -27,6 +27,7 @@ ENV HEKATE=${HEKATE}
 
 COPY configs configs/
 COPY entrypoint.sh /build
+COPY register.sh /build
 
 RUN find /build -type f -iname "*.sh" -exec chmod +x {} \;
 

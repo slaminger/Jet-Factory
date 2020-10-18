@@ -10,12 +10,12 @@ cwd=$(dirname "$(readlink -f "$0")")
 # Supported image file format
 images_format=(".raw .img .iso")
 # Output name of image file
-guestfs_img="switchroot-${DISTRO}.img"
+guestfs_img="${out}/switchroot-${DISTRO}.img"
 
 # Hekate Specific :
 
 # Output name of target hekate build 
-zip_final="switchroot-${DISTRO}.7z"
+zip_final="${out}/switchroot-${DISTRO}.7z"
 hekate_version=5.3.3
 nyx_version=0.9.4
 hekate_url="https://github.com/CTCaer/hekate/releases/download/v${hekate_version}/hekate_ctcaer_${hekate_version}_Nyx_${nyx_version}.zip"
@@ -25,7 +25,7 @@ hekate_bin="hekate_ctcaer_${hekate_version}.bin"
 # Helper functions :
 
 get_file() {
-	export img="${URL##*/}"
+	img="${URL##*/}"
 
 	echo -e "Downloading necessary files...\n"
 	if [[ ! -e "${out}/downloadedFiles/${img%.*}" ]]; then
@@ -53,22 +53,21 @@ hashsum() {
 }
 
 cleanup() {
-	echo -e "Trying to unmount failed build\n"
-
-	# Unmount cache when done
-	[[ -n "$CACHE_DIR" ]] && umount "${out}/cache"
-
-	# Unmount chroot dir
-	[[ -d "${build_dir}" ]] && umount -R "${build_dir}"
-	
 	echo -e "Cleaning build files...\n"
 
-	# Remove lock file if empty, meaning no more instance is running.
-	[[ -f "${out}/.lock" && ! -s "${out}/.lock" ]] && rm -rf "${out}/.lock"
+	# Unmount cache when done
+	if [[ "$(mountpoint -q ${out}/cache)" ]]; then
+		umount "${out}/cache"
+	fi
 
-	[[ -d "${build_dir}" ]] && rm -rf "${build_dir}"
+	# Unmount chroot dir
+	if [[ -d "${build_dir}" ]]; then
+		if [[ "$(mountpoint -q ${build_dir})" ]]; then
+			umount -R "${build_dir}"
+		fi
 
-	echo -e "Cleaning done\n"
+		rm -rf "${build_dir}"
+	fi
 }
 
 # Core functions :
@@ -147,9 +146,6 @@ extract_rootfs() {
 			[[ ! -e "${img%.*}" ]] && unxz "${img}"
 		fi
 
-		# echo -e "Scanning image file for rootfs partition\n"
-		# rootfs="$(guestfish -a "${img}" launch : inspect-os)"
-
 		echo -e "Extracting partition from image file. This will take a while...\n"
 		virt-copy-out -a "${img}" / "${build_dir}"
 	fi
@@ -158,34 +154,18 @@ extract_rootfs() {
 chroot_wrapper() {
 	echo -e "Chrooting...\n"
 
-	# Get OS acrhitecture using libgguestfs
-	AARCH=$(guestfish -a ${img} launch : inspect-os : inspect-get-arch | tail -1)
+	# Get root partition using guestfish
+	rootfs=$(guestfish -a ${img} launch : inspect-os)
+
+	# Get OS architecture using guestfish
+	AARCH=$(guestfish -a ${img} launch : inspect-os : inspect-get-arch ${rootfs} | tail -1)
 
 	# Check if target and host architecture are the same
 	[[ "$(uname -m)" == "${AARCH}" ]] && same_arch=1
 
-	# Check if the architecture is already registered within a .lock file
-	if [[ -f "${out}/.lock" ]]; then
-		lock="$(grep -xF "${AARCH}" "${out}/.lock")"
-	else
-		echo "${AARCH} 1" > "${out}/.lock"
-	fi
-
-	# If an architecture is  already registered increment the counter
-	if [[ -n ${lock} ]]; then
-		# Get current lock count
-		lock_count=$(sed 's/'${AARCH}' //g' "${out}/.lock")
-
-		# Increment lock count in lock file
-		sed -i 's/'${AARCH}' '${lock_count}'/'${AARCH}' '$((lock_count+1))'/g' "${out}/.lock"
-
-		# Increment lock count variable
-		lock_count=$((lock_count+1))
-	fi
-
-	# Register binary if the architecture differs
+	# Register binary if the host and target CPU architectures differ
 	# and no other instance of same CPU emulation is happening
-	if [[ -z ${same_arch} && -z ${lock} ]]; then
+	if [[ -z ${same_arch} ]]; then
 		if [ ! -f /proc/sys/fs/binfmt_misc/register ]; then
 			if ! mount binfmt_misc -t binfmt_misc /proc/sys/fs/binfmt_misc; then
 			exit 1
@@ -194,8 +174,9 @@ chroot_wrapper() {
 		
 		if [[ ! -e "/proc/sys/fs/binfmt_misc/qemu-${AARCH}" ]]; then
 			"${cwd}/register.sh" -s -- -p "${AARCH}"
-			cp "/usr/bin/qemu-${AARCH}-static" "${build_dir}/usr/bin/"
 		fi
+
+		cp "/usr/bin/qemu-${AARCH}-static" "${build_dir}/usr/bin/"
 	fi
 
 	# Mount bind chroot dir
@@ -203,7 +184,7 @@ chroot_wrapper() {
 
 	# Add cache dir configuration
 	if [[ -n "${CACHE_DIR}" ]]; then
-		mkdir "${out}/cache"
+		mkdir -p "${out}/cache"
 		mount --bind "${out}/cache" "${build_dir}/${CACHE_DIR}"
 	fi
 
@@ -226,27 +207,22 @@ chroot_wrapper() {
 	cp "${cwd}/configs/${DEVICE}/files/${CHROOT_SCRIPT}" "${build_dir}"
 
 	# Handle resolv.conf
-	cp --remove-destination --dereference /etc/resolv.conf "${build_dir}/etc/resolv.conf"
+	cp --remove-destination /etc/resolv.conf "${build_dir}/etc/resolv.conf"
 
-	# Actual chroot
-	arch-chroot "${build_dir}" /bin/bash "/${CHROOT_SCRIPT}"
+	# Create a lock with file descriptor: 200
+	(
+		flock -x 200
+		
+		# Ensure lock file is removed after the process ends
+		trap "rm -rf ${out}/.lock-${AARCH}" 0
 
-	# Check lock status
-	if [[ -z ${lock} ]]; then
-		# Get current lock count
-		lock_count=$(sed 's/'${AARCH}' //g' "${out}/.lock")
+		# Actual chroot
+		arch-chroot "${build_dir}" /bin/bash "/${CHROOT_SCRIPT}"
+	) 200> "${out}/.lock-${AARCH}"
 
-		# If the current instance is the only one left for this binary, remove it
-		if [[ ${lock_count} = 1 ]]; then
-			# Remove lock on architecture
-			sed -i '/'${AARCH}'*/d' "${out}/.lock"
-
-			# Unregister binary if it wasn't set on script launch
-			"${cwd}/register.sh" -- -r -p ${AARCH}
-		else
-			# Decrement lock count in lock file
-			sed -i 's/'${AARCH}' '${lock_count}'/'${AARCH}' '$((lock_count-1))'/g' "${out}/.lock"
-		fi
+	if [[ -z $same_arch ]]; then
+		rm -rf "${build_dir}/usr/bin/qemu-${AARCH}-static" \
+			"${build_dir}/${CHROOT_SCRIPT}"
 	fi
 }
 
@@ -322,8 +298,14 @@ create_hekate_zip() {
 	7z a "${zip_final}" "${switchroot_dir}"
 
 	# Clean image
-	rm -rf "${out}/${guestfs_img}" 
+	rm -rf "${guestfs_img}" 
 }
+
+# Cleanup on CTRL_C signal
+trap cleanup INT
+
+# Cleanup on EXIT signal
+trap cleanup 0
 
 cleanup
 prepare
@@ -332,4 +314,3 @@ hashsum
 extract_rootfs
 chroot_wrapper
 create_target
-cleanup

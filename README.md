@@ -31,18 +31,28 @@ Variables:
 mkdir -p ./linux
 ```
 
-- Option 1 Build without Docker :
+### Option 1 Build without Docker :
 
+Build:
 ```sh
 sudo DEVICE=tegra210 DISTRO=arch ./entrypoint.sh linux/
 ```
 
-Or
+Remove registered QEMU binaries, if wanted(recommanded for most users):
+```sh
+sudo ./register -- -r
+```
 
-- Option 2 - Build with Docker :
+### Option 2 - Build with Docker :
 
+Build:
 ```sh
 sudo docker run --privileged --rm -it -e DISTRO=arch -e DEVICE=tegra210 -v "$PWD"/linux:/out alizkan/jet-factory:latest
+```
+
+Remove registered QEMU binaries, if wanted(recommanded for most users):
+```sh
+sudo docker run --privileged --rm -it alizkan/jet-factory:latest ./register ---r
 ```
 
 ### Docker tips
@@ -50,7 +60,7 @@ sudo docker run --privileged --rm -it -e DISTRO=arch -e DEVICE=tegra210 -v "$PWD
 *You can override the workdir used in the docker, to use your own changes, without rebuilding the image by adding this repository directory as a volume to the docker command above.*
 
 ```sh
--v $(pwd):build/
+-v $(pwd):/build
 ```
 
 ## Credits
